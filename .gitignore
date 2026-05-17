@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+#Extras
+.idea/
+.vscode/
+.venv/
+*.pyc
+save_data.json
