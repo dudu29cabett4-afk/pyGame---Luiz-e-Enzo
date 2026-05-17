@@ -84,10 +84,8 @@ class World:
             tipo = self.gerar_tile(l)[1]
             bioma = self.fixar_bioma_linha(l, score)
 
-            # --- CORREÇÃO 6: Arvores e PowerUps sem colisao entre si ---
             if tipo == TIPO_GRAMA and l < -SAFE_ZONE_LINHAS:
-                # Rastrea todas as arvores ativas nesta linha específica
-                ocupadas = {a.wx for a in self.arvores_ativas if a.linha == l}
+                ocupadas = {int(a.wx) for a in self.arvores_ativas if a.linha == l}
 
                 chance_arvore = ARVORE_CHANCE_BASE + min(score / ARVORE_CHANCE_EXTRA_SCORE, ARVORE_CHANCE_EXTRA_MAX)
                 if random.random() < chance_arvore and not any(a.linha == l for a in self.arvores_ativas):
@@ -98,7 +96,6 @@ class World:
                 if len([p for p in self.powerups_ativos if not p.coletado]) < MAX_POWERUPS_ATIVOS:
                     if not any(p.wy // TAMANHO_TILE == l for p in self.powerups_ativos):
                         if random.random() < POWERUP_CHANCE_SPAWN:
-                            # Filtra as posições ocupadas antes de gerar o powerup
                             livres = [c * TAMANHO_TILE for c in range(1, (LARGURA // TAMANHO_TILE) - 1) if
                                       c * TAMANHO_TILE not in ocupadas]
                             if livres:
@@ -106,7 +103,6 @@ class World:
                                 pu_tipo = "escudo" if random.random() < 0.5 else "xp2"
                                 self.powerups_ativos.append(PowerUp(wx, l * TAMANHO_TILE, pu_tipo))
 
-            # --- CORREÇÃO 2: Impedir o esvaziamento das Ruas ---
             if tipo == TIPO_ESTRADA:
                 if l not in self.lane_data:
                     d = 1 if l % 2 == 0 else -1
@@ -115,7 +111,6 @@ class World:
                 ld = self.lane_data[l]
                 ja_existem = [c for c in self.carros_ativos if c.linha == l]
 
-                # Se a rua esvaziou inteira, reseta a variavel next_x para a borda
                 if not ja_existem:
                     ld['next_x'] = -100 if ld['dir'] == 1 else LARGURA
                     img = random.choice(assets.images['carros_r'] if ld['dir'] == 1 else assets.images['carros_l'])
@@ -129,7 +124,6 @@ class World:
                         self.carros_ativos.append(Carro(l, spawn_x, ld['v'], ld['dir'], img))
                         ld['next_x'] += ld['dir'] * random.randint(200, 400)
 
-            # --- CORREÇÃO 2: Impedir o esvaziamento dos Rios ---
             elif tipo == TIPO_RIO and not self.rio_congelado(score):
                 if l not in self.lane_data:
                     d = 1 if l % 2 == 0 else -1
@@ -141,9 +135,17 @@ class World:
                 ld = self.lane_data[l]
                 if ld["modo_rio"] == "vitoria_regia":
                     if not any(v.linha == l for v in self.vitorias_ativas):
-                        cols = sorted(random.sample(range(1, (LARGURA // TAMANHO_TILE) - 1), random.randint(2, 4)))
-                        for c in cols: self.vitorias_ativas.append(
-                            VitoriaRegia(l, c * TAMANHO_TILE + (TAMANHO_TILE - VitoriaRegia.TAMANHO) // 2))
+                        # Conexão garantida com a linha imediatamente de cima ou de baixo
+                        cols_adjacentes = [int(v.wx // TAMANHO_TILE) for v in self.vitorias_ativas if
+                                           v.linha in (l - 1, l + 1)]
+                        qtd = random.randint(3, 5)
+                        cols = random.sample(range(1, (LARGURA // TAMANHO_TILE) - 1), qtd)
+
+                        if cols_adjacentes:
+                            cols[0] = random.choice(cols_adjacentes)  # Força a união de uma coluna
+
+                        for c in set(cols):
+                            self.vitorias_ativas.append(VitoriaRegia(l, c * TAMANHO_TILE))
                 else:
                     ja_existem = [t for t in self.troncos_ativos if t.linha == l]
                     t_tipo = "crocodilo" if bioma == "areia" else "tronco"
@@ -190,13 +192,11 @@ class World:
         self.fumacas_ativas[:] = [f for f in self.fumacas_ativas if not f.expirou(agora)]
 
     def check_death(self, player, agora):
-        py_screen = player.wy - self.camera_y
+        # Escudo funcionando perfeitamente: Interrompe a morte logo de cara
+        if agora < player.graca_ate: return False
 
-        # CORREÇÃO 1: Morte ao ser arrastado pelas bordas da tela horizontalmente
-        if player.wx < -20 or player.wx > LARGURA - TAMANHO_TILE + 20:
-            return True
-        if py_screen >= ALTURA or py_screen < -TAMANHO_TILE:
-            return True
+        py_screen = player.wy - self.camera_y
+        if py_screen >= ALTURA or py_screen < -TAMANHO_TILE: return True
 
         prect = player.rect(self.camera_y)
         tipo = self.gerar_tile(int(player.wy // TAMANHO_TILE))[1]
@@ -217,7 +217,7 @@ class World:
         if golpe_fatal:
             if player.tem_escudo:
                 player.tem_escudo = False
-                player.graca_ate = agora + 600
+                player.graca_ate = agora + 1200  # Tempo de invencibilidade longo pra dar tempo de pular fora
                 return False
             return True
         return False
