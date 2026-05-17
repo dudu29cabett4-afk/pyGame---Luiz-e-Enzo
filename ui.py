@@ -14,10 +14,11 @@ def draw_button(surface, rect, label, hover, font_key='botao'):
 
 
 def draw_hud(surface, player_name, score, high_score):
-    draw_text_shadow(surface, assets.fonts['hud'], f"Player: {player_name}", (150, 220, 255), (15, 10),
-                     anchor="topleft", offset=1)
-    draw_text_shadow(surface, assets.fonts['score'], f"Score: {score}", (255, 255, 255), (15, 30), anchor="topleft")
-    draw_text_shadow(surface, assets.fonts['hud'], f"High: {high_score}", (255, 200, 50), (15, 55), anchor="topleft")
+    # CORREÇÃO 4: Nome do jogador muito mais chamativo e impactante no HUD
+    draw_text_shadow(surface, assets.fonts['botao_grande'], f"{player_name}", (0, 255, 200), (15, 10), anchor="topleft",
+                     offset=2)
+    draw_text_shadow(surface, assets.fonts['score'], f"Score: {score}", (255, 255, 255), (15, 42), anchor="topleft")
+    draw_text_shadow(surface, assets.fonts['hud'], f"High: {high_score}", (255, 200, 50), (15, 68), anchor="topleft")
 
 
 def draw_danger_zone(surface, camera_y, player_wy):
@@ -144,7 +145,6 @@ def draw_load_player_screen(surface, players_dict, mouse_pos, scroll_y):
 
     surface.set_clip(view_rect)
 
-    # Ordem Reversa: Os criados mais recentemente (fim do dict) aparecem primeiro
     players = list(players_dict.keys())[::-1]
     start_y = 135 + scroll_y
 
@@ -203,7 +203,6 @@ def draw_leaderboard_screen(surface, players_dict, mouse_pos, scroll_y):
 
     surface.set_clip(view_rect)
 
-    # Ordena do maior score pro menor
     sorted_players = sorted(players_dict.items(), key=lambda x: x[1]['high_score'], reverse=True)
     start_y = 135 + scroll_y
 
@@ -213,7 +212,6 @@ def draw_leaderboard_screen(surface, players_dict, mouse_pos, scroll_y):
         for i, (p_name, data) in enumerate(sorted_players):
             row_rect = pygame.Rect(LARGURA // 2 - 170, start_y, 340, 50)
 
-            # Cores do Ranking Ouro, Prata, Bronze, e Comum
             if i == 0:
                 bg_cor = (255, 200, 0)
                 rank_cor = (150, 100, 0)
@@ -229,16 +227,13 @@ def draw_leaderboard_screen(surface, players_dict, mouse_pos, scroll_y):
 
             pygame.draw.rect(surface, bg_cor, row_rect, border_radius=10)
 
-            # Texto Esquerda (#1)
             rank_txt = assets.fonts['botao'].render(f"#{i + 1}", True, rank_cor)
             surface.blit(rank_txt, rank_txt.get_rect(center=(row_rect.x + 30, row_rect.centery)))
 
-            # Texto Centro (Nome)
             n_cor = (0, 0, 0) if i < 3 else (255, 255, 255)
             draw_text_shadow(surface, assets.fonts['botao'], p_name, n_cor, (row_rect.centerx - 20, row_rect.centery),
                              offset=(0 if i < 3 else 1))
 
-            # Box de Pontuacao na Direita
             box_score = pygame.Rect(row_rect.right - 80, row_rect.y + 10, 70, 30)
             box_surf = pygame.Surface((box_score.w, box_score.h), pygame.SRCALPHA)
             pygame.draw.rect(box_surf, (0, 0, 0, 80), (0, 0, box_score.w, box_score.h), border_radius=6)
