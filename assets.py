@@ -7,7 +7,6 @@ images = {}
 fonts = {}
 
 
-# ... (Mesmas funcoes de antes: criar_tile_grama, escalar_carro, etc)
 def criar_tile_grama(img, tamanho=TAMANHO_TILE):
     w, h = img.get_size()
     lado = min(w, h)
@@ -64,7 +63,6 @@ def fazer_img_crocodilo(num_slots: int) -> pygame.Surface:
 def load_all_assets():
     base = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd()
 
-    # Fontes Menores para Menu
     fonts['botao'] = pygame.font.SysFont("arial", 20, bold=True)
     fonts['botao_grande'] = pygame.font.SysFont("arial", 24, bold=True)
     fonts['score'] = pygame.font.SysFont("arial", 22, bold=True)
@@ -104,9 +102,15 @@ def load_all_assets():
     images['pu_escudo'] = _criar_pu_escudo()
     images['pu_xp2'] = _criar_pu_xp2()
 
-    t_raw = load_img("pasta_imagens/tronco.png")
-    images['troncos'] = {k: pygame.transform.scale(t_raw, (k * TAMANHO_TILE, TAMANHO_TILE)) for k in
-                         TRONCO_SLOTS_OPCOES}
+    # --- CORREÇÃO 3: Unindo as sprites do tronco ao invés de esticar ---
+    t_raw = load_img("pasta_imagens/tronco.png", (TAMANHO_TILE, TAMANHO_TILE))
+    images['troncos'] = {}
+    for k in TRONCO_SLOTS_OPCOES:
+        surf_tronco = pygame.Surface((k * TAMANHO_TILE, TAMANHO_TILE), pygame.SRCALPHA)
+        for i in range(k):
+            surf_tronco.blit(t_raw, (i * TAMANHO_TILE, 0))
+        images['troncos'][k] = surf_tronco
+
     images['troncos_flip'] = {k: pygame.transform.flip(v, True, False) for k, v in images['troncos'].items()}
 
     images['crocodilos'] = {k: fazer_img_crocodilo(k) for k in TRONCO_SLOTS_OPCOES}
