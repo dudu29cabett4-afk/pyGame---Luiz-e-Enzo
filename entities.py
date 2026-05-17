@@ -76,20 +76,19 @@ class PowerUp:
 
 
 class VitoriaRegia:
-    TAMANHO = 28
-
     def __init__(self, linha, wx):
-        self.linha, self.wx, self.wy = linha, float(wx), float(
-            linha * TAMANHO_TILE + (TAMANHO_TILE - self.TAMANHO) // 2)
+        self.linha, self.wx, self.wy = linha, float(wx), float(linha * TAMANHO_TILE)
 
-    def rect_mundo(self): return pygame.Rect(int(self.wx), int(self.wy), self.TAMANHO, self.TAMANHO)
+    def rect_mundo(self): return pygame.Rect(int(self.wx) + 4, int(self.wy) + 4, TAMANHO_TILE - 8, TAMANHO_TILE - 8)
 
     def draw(self, surface, camera_y):
         sy = int(self.wy - camera_y)
-        if -self.TAMANHO <= sy <= ALTURA:
-            sx = int(self.wx) + (TAMANHO_TILE - self.TAMANHO) // 2
-            pygame.draw.rect(surface, (60, 180, 70), (sx, sy, self.TAMANHO, self.TAMANHO), border_radius=5)
-            pygame.draw.rect(surface, (25, 110, 35), (sx, sy, self.TAMANHO, self.TAMANHO), 2, border_radius=5)
+        if -TAMANHO_TILE <= sy <= ALTURA:
+            sx = int(self.wx)
+            # Vitória régia agora ocupa o bloco inteiro (com um recorte simulando a folha)
+            pygame.draw.rect(surface, (60, 180, 70), (sx + 4, sy + 4, 40, 40), border_radius=20)
+            pygame.draw.rect(surface, (25, 110, 35), (sx + 4, sy + 4, 40, 40), 2, border_radius=20)
+            pygame.draw.polygon(surface, (80, 170, 230), [(sx + 24, sy + 4), (sx + 16, sy + 18), (sx + 32, sy + 18)])
 
 
 class Player:
@@ -124,16 +123,20 @@ class Player:
         novo_wx, novo_wy = self.wx, self.wy
 
         if key == pygame.K_w:
-            novo_wy -= TAMANHO_TILE; self.imagem = assets.images['p_cima']
+            novo_wy -= TAMANHO_TILE;
+            self.imagem = assets.images['p_cima']
+            # ALINHAMENTO DE GRADE (Impede que a hitbox encoste em árvores do lado)
+            novo_wx = round(novo_wx / TAMANHO_TILE) * TAMANHO_TILE
         elif key == pygame.K_s:
-            novo_wy += TAMANHO_TILE; self.imagem = assets.images['p_baixo']
+            novo_wy += TAMANHO_TILE;
+            self.imagem = assets.images['p_baixo']
+            novo_wx = round(novo_wx / TAMANHO_TILE) * TAMANHO_TILE
         elif key == pygame.K_a:
-            novo_wx -= TAMANHO_TILE; self.imagem = assets.images['p_esq']
+            novo_wx -= TAMANHO_TILE;
+            self.imagem = assets.images['p_esq']
         elif key == pygame.K_d:
-            novo_wx += TAMANHO_TILE; self.imagem = assets.images['p_dir']
-
-        # Previne que ele ande pra fora da tela (mas permite ser arrastado)
-        novo_wx = clamp(novo_wx, 0.0, float(LARGURA - TAMANHO_TILE))
+            novo_wx += TAMANHO_TILE;
+            self.imagem = assets.images['p_dir']
 
         test_rect = pygame.Rect(int(novo_wx) + 8, int(novo_wy) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
         if not self.world.colide_com_arvore(test_rect):
@@ -152,6 +155,8 @@ class Player:
             if nova_linha < self.linha_recorde:
                 self.linha_recorde = nova_linha
                 self.score += 2 if agora < self.xp2_ate else 1
+
+        self.wx = clamp(self.wx, 0.0, float(LARGURA - TAMANHO_TILE))
 
     def update(self, agora):
         self.process_input(agora)
@@ -172,8 +177,14 @@ class Player:
             if ld.get("modo_rio") == "vitoria_regia":
                 self.tronco_atual = None
             elif self.tronco_atual:
-                # CORREÇÃO 1: Nao clampa o movimento aqui, deixa o tronco arrastar o player para a morte
-                self.wx = self.tronco_atual.slot_x_mundo(self.slot_atual)
+                target_x = self.tronco_atual.slot_x_mundo(self.slot_atual)
+                # O personagem é limitado pela parede.
+                self.wx = clamp(target_x, 0.0, float(LARGURA - TAMANHO_TILE))
+
+                # Se a parede travou o jogador e o tronco passou reto, ele cai na água!
+                if self.tronco_atual.x > self.wx + 20 or self.tronco_atual.x + self.tronco_atual.largura < self.wx + 20:
+                    self.tronco_atual = None
+
             else:
                 for t in [tr for tr in self.world.troncos_ativos if tr.linha == player_linha]:
                     if t.x <= self.wx < t.x + t.largura:
