@@ -7,7 +7,9 @@ pygame.init()
 ALTURA = 700
 LARGURA = 500
 window = pygame.display.set_mode((LARGURA, ALTURA))
-pygame.display.set_caption("Cruze Quatá!")
+WINDOW = window
+CLOCK = pygame.time.Clock()
+pygame.display.set_caption("Cruze a Quatá!")
 
 base = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd()
 
@@ -45,6 +47,10 @@ def escalar_carro(img):
     orig_w, orig_h = img.get_size()
     nova_largura = int(orig_w * (nova_altura / orig_h))
     return pygame.transform.scale(img, (nova_largura, nova_altura))
+
+def clamp(v, lo, hi):
+    return max(lo, min(hi, v))
+
 
 
 def desenhar_grama(surface, y, tile_img, bioma="grama"):
@@ -877,6 +883,16 @@ def desenhar_botao(surface, rect, label, kbd_hint, hover,
     surface.blit(hint, hint.get_rect(center=(rect.centerx, rect.centery + 13)))
 
 
+
+
+def draw_button(surface, rect, label, hint, hover,
+                normal=(30, 30, 60), hover_cor=(180, 70, 10),
+                border=(255, 200, 50), text=(255, 255, 255)):
+    return desenhar_botao(surface, rect, label, hint, hover,
+                          cor_normal=normal, cor_hover=hover_cor,
+                          cor_borda=border, cor_texto=text)
+
+
 def desenhar_painel_como_jogar():
     overlay = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 195))
@@ -1290,7 +1306,7 @@ def iniciar_jogo() -> str:
                     tronco_atual = None
                 elif tronco_atual is not None:
                     player_wx = tronco_atual.slot_x_mundo(slot_atual)
-                    player_wx = max(0.0, min(float(LARGURA - TAMANHO_TILE), player_wx))
+                    player_wx = clamp(player_wx, 0.0, float(LARGURA - TAMANHO_TILE))
                 else:
                     troncos_da_linha = [t for t in troncos_ativos if t.linha == player_linha_atual]
                     for t in troncos_da_linha:
@@ -1302,7 +1318,7 @@ def iniciar_jogo() -> str:
         else:
             tronco_atual = None
 
-        player_wx = max(0.0, min(float(LARGURA - TAMANHO_TILE), player_wx))
+        player_wx = clamp(player_wx, 0.0, float(LARGURA - TAMANHO_TILE))
         player_screen_x = int(player_wx)
 
         player_rect_mundo = pygame.Rect(
