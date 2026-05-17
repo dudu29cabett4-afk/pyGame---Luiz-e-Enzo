@@ -14,7 +14,8 @@ class Game:
     def __init__(self):
         pygame.init()
         self.window = pygame.display.set_mode((LARGURA, ALTURA))
-        pygame.display.set_caption("Cruze a Quatá! - Pro Edition")
+        # CORREÇÃO 5: Removido o "Pro Edition"
+        pygame.display.set_caption("Cruze a Quatá!")
         self.clock = pygame.time.Clock()
         assets.load_all_assets()
 
@@ -200,7 +201,7 @@ class Game:
 
             elif self.state == ESTADO_CONTROLS:
                 self.window.blit(assets.images['fundo'], (0, 0))
-                draw_options_screen(self.window, mouse)  # Fundo das opcoes
+                draw_options_screen(self.window, mouse)
                 draw_control_setup(self.window)
                 btn_fechar = pygame.Rect(LARGURA // 2 - 75, (ALTURA - 260) // 2 + 205, 150, 35)
                 draw_button(self.window, btn_fechar, "FECHAR", btn_fechar.collidepoint(mouse))
