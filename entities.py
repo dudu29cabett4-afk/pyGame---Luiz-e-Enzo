@@ -132,6 +132,9 @@ class Player:
         elif key == pygame.K_d:
             novo_wx += TAMANHO_TILE; self.imagem = assets.images['p_dir']
 
+        # Previne que ele ande pra fora da tela (mas permite ser arrastado)
+        novo_wx = clamp(novo_wx, 0.0, float(LARGURA - TAMANHO_TILE))
+
         test_rect = pygame.Rect(int(novo_wx) + 8, int(novo_wy) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
         if not self.world.colide_com_arvore(test_rect):
             if self.tronco_atual and key in [pygame.K_a, pygame.K_d]:
@@ -149,8 +152,6 @@ class Player:
             if nova_linha < self.linha_recorde:
                 self.linha_recorde = nova_linha
                 self.score += 2 if agora < self.xp2_ate else 1
-
-        self.wx = clamp(self.wx, 0.0, float(LARGURA - TAMANHO_TILE))
 
     def update(self, agora):
         self.process_input(agora)
@@ -171,7 +172,8 @@ class Player:
             if ld.get("modo_rio") == "vitoria_regia":
                 self.tronco_atual = None
             elif self.tronco_atual:
-                self.wx = clamp(self.tronco_atual.slot_x_mundo(self.slot_atual), 0.0, float(LARGURA - TAMANHO_TILE))
+                # CORREÇÃO 1: Nao clampa o movimento aqui, deixa o tronco arrastar o player para a morte
+                self.wx = self.tronco_atual.slot_x_mundo(self.slot_atual)
             else:
                 for t in [tr for tr in self.world.troncos_ativos if tr.linha == player_linha]:
                     if t.x <= self.wx < t.x + t.largura:
@@ -240,7 +242,6 @@ class Arvore:
         self.linha, self.wx, self.wy, self.nascida_em = linha, float(wx), float(linha * TAMANHO_TILE), nascida_em
 
     def world_rect(self):
-        # Hitbox contida em apenas 1 tile.
         return pygame.Rect(int(self.wx) + 8, int(self.wy) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
 
     def draw(self, surface, camera_y, agora, bioma):
@@ -249,8 +250,6 @@ class Arvore:
             surf = pygame.Surface((TAMANHO_TILE, TAMANHO_TILE), pygame.SRCALPHA)
             tempo = max(0, agora - self.nascida_em)
             alpha = int(255 * (tempo / ARVORE_APARECIMENTO_MS)) if tempo < ARVORE_APARECIMENTO_MS else 255
-
-            # Centro exato do tile 48x48 é 24
             cx = TAMANHO_TILE // 2
 
             if bioma == "areia":
