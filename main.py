@@ -6,7 +6,8 @@ import assets
 from utils import load_save, save_game, draw_text_shadow
 from world import World
 from entities import Player
-from ui import draw_button, draw_hud, draw_danger_zone, draw_controls, draw_powerups_hud
+from ui import draw_button, draw_hud, draw_danger_zone, draw_controls, draw_powerups_hud, draw_new_player_screen, \
+    draw_load_player_screen
 
 
 class Game:
@@ -18,17 +19,21 @@ class Game:
         assets.load_all_assets()
 
         self.save_data = load_save()
-        self.high_score = self.save_data.get('high_score', 0)
         self.state = ESTADO_MENU
 
         self.world = None
         self.player = None
+        self.current_player = None  # Jogador escolhido
 
+        # UI States extras
         self.show_controls = False
         self.onboarding_time = 0
         self.shake_remaining = 0
+        self.input_text = ""
+        self.input_error = ""
 
-    def start_game(self):
+    def start_game(self, player_name):
+        self.current_player = player_name
         self.world = World()
         self.player = Player(self.world)
         self.world.camera_y = self.player.wy - PLAYER_ALVO_Y
@@ -46,96 +51,146 @@ class Game:
                     pygame.quit();
                     sys.exit()
 
+                # --- MENU PRINCIPAL ---
                 if self.state == ESTADO_MENU:
-                    btn_inst = pygame.Rect(LARGURA // 2 - 110, ALTURA // 2 + 30, 220, 58)
-                    btn_fechar = pygame.Rect(LARGURA // 2 - 75, (ALTURA - 300) // 2 + 242, 150, 42)
+                    btn_load = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 10, 160, 45)
+                    btn_new = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 45, 160, 45)
+                    btn_ctrl = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 100, 160, 45)
+                    btn_fechar_ctrl = pygame.Rect(LARGURA // 2 - 75, (ALTURA - 260) // 2 + 205, 150, 35)
 
                     if event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_SPACE and not self.show_controls: self.start_game()
                         if event.key == pygame.K_c: self.show_controls = not self.show_controls
                         if event.key == pygame.K_ESCAPE: self.show_controls = False
 
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                        if self.show_controls and btn_fechar.collidepoint(mouse):
+                        if self.show_controls and btn_fechar_ctrl.collidepoint(mouse):
                             self.show_controls = False
-                        elif not self.show_controls and btn_inst.collidepoint(mouse):
-                            self.show_controls = True
+                        elif not self.show_controls:
+                            if btn_ctrl.collidepoint(mouse): self.show_controls = True
+                            if btn_new.collidepoint(mouse):
+                                self.state = ESTADO_NEW_PLAYER
+                                self.input_text = ""
+                                self.input_error = ""
+                            if btn_load.collidepoint(mouse): self.state = ESTADO_LOAD_PLAYER
 
+                # --- MENU NOVO JOGADOR ---
+                elif self.state == ESTADO_NEW_PLAYER:
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_ESCAPE:
+                            self.state = ESTADO_MENU
+                        elif event.key == pygame.K_BACKSPACE:
+                            self.input_text = self.input_text[:-1]
+                        elif event.key == pygame.K_RETURN:
+                            self._try_create_player()
+                        elif len(self.input_text) < 12 and event.unicode.isprintable():
+                            self.input_text += event.unicode
+                            self.input_error = ""
+
+                # --- JOGANDO ---
                 elif self.state == ESTADO_JOGANDO:
                     if event.type == pygame.KEYDOWN and event.key in [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d]:
                         self.player.queue_input(event.key)
 
+                # --- GAME OVER ---
                 elif self.state == ESTADO_GAMEOVER:
-                    btn_retry = pygame.Rect(LARGURA // 2 - 185, ALTURA // 2 + 65, 170, 58)
-                    btn_menu = pygame.Rect(LARGURA // 2 + 15, ALTURA // 2 + 65, 170, 58)
+                    btn_retry = pygame.Rect(LARGURA // 2 - 165, ALTURA // 2 + 65, 150, 45)
+                    btn_menu = pygame.Rect(LARGURA // 2 + 15, ALTURA // 2 + 65, 150, 45)
                     if event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_r: self.start_game()
+                        if event.key == pygame.K_r: self.start_game(self.current_player)
                         if event.key == pygame.K_m: self.state = ESTADO_MENU
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                        if btn_retry.collidepoint(mouse): self.start_game()
+                        if btn_retry.collidepoint(mouse): self.start_game(self.current_player)
                         if btn_menu.collidepoint(mouse): self.state = ESTADO_MENU
 
             self.window.fill((0, 0, 0))
 
+            # --- RENDER: MENU PRINCIPAL ---
             if self.state == ESTADO_MENU:
                 self.window.blit(assets.images['fundo'], (0, 0))
-                if pygame.time.get_ticks() % 1000 < 500:
-                    draw_text_shadow(self.window, assets.fonts['botao'], "ESPAÇO para começar", (255, 255, 255),
-                                     (LARGURA // 2, ALTURA // 2 - 20))
 
-                draw_button(self.window, pygame.Rect(LARGURA // 2 - 110, ALTURA // 2 + 30, 220, 58), "CONTROLES", "C",
-                            pygame.Rect(LARGURA // 2 - 110, ALTURA // 2 + 30, 220, 58).collidepoint(mouse))
+                btn_load = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 10, 160, 45)
+                btn_new = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 45, 160, 45)
+                btn_ctrl = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 100, 160, 45)
+
+                draw_button(self.window, btn_load, "LOAD PLAYER", btn_load.collidepoint(mouse))
+                draw_button(self.window, btn_new, "NEW PLAYER", btn_new.collidepoint(mouse))
+                draw_button(self.window, btn_ctrl, "CONTROLES", btn_ctrl.collidepoint(mouse))
 
                 if self.show_controls:
                     draw_controls(self.window)
-                    draw_button(self.window, pygame.Rect(LARGURA // 2 - 75, (ALTURA - 300) // 2 + 242, 150, 42),
-                                "FECHAR", "ESC",
-                                pygame.Rect(LARGURA // 2 - 75, (ALTURA - 300) // 2 + 242, 150, 42).collidepoint(mouse))
+                    btn_fechar = pygame.Rect(LARGURA // 2 - 75, (ALTURA - 260) // 2 + 205, 150, 35)
+                    draw_button(self.window, btn_fechar, "FECHAR", btn_fechar.collidepoint(mouse))
 
+            # --- RENDER: NEW PLAYER ---
+            elif self.state == ESTADO_NEW_PLAYER:
+                self.window.blit(assets.images['fundo'], (0, 0))
+                btn_create, btn_back = draw_new_player_screen(self.window, self.input_text, self.input_error, mouse)
+
+                if pygame.mouse.get_pressed()[0]:
+                    if btn_create.collidepoint(mouse): self._try_create_player()
+                    if btn_back.collidepoint(mouse): self.state = ESTADO_MENU
+
+            # --- RENDER: LOAD PLAYER ---
+            elif self.state == ESTADO_LOAD_PLAYER:
+                self.window.blit(assets.images['fundo'], (0, 0))
+                play_buttons_dict, btn_back = draw_load_player_screen(self.window, self.save_data["players"], mouse)
+
+                if pygame.mouse.get_pressed()[0]:
+                    if btn_back.collidepoint(mouse): self.state = ESTADO_MENU
+                    for p_name, btn_rect in play_buttons_dict.items():
+                        if btn_rect.collidepoint(mouse):
+                            self.start_game(p_name)
+
+            # --- RENDER: JOGANDO ---
             elif self.state == ESTADO_JOGANDO:
                 self.player.update(agora)
                 self.world.update(self.player, self.player.score, agora)
-
                 self.world.draw(self.window, self.player.score, agora)
+
                 hl = pygame.Surface((TAMANHO_TILE, TAMANHO_TILE), pygame.SRCALPHA)
                 pygame.draw.rect(hl, (255, 255, 255, 30), (0, 0, TAMANHO_TILE, TAMANHO_TILE), border_radius=8)
                 self.window.blit(hl, (int(self.player.wx), int(self.player.wy - self.world.camera_y)))
 
                 self.player.draw(self.window, self.world.camera_y, agora)
                 draw_danger_zone(self.window, self.world.camera_y, self.player.wy)
-                draw_hud(self.window, self.player.score, self.high_score)
+
+                high = self.save_data["players"][self.current_player]["high_score"]
+                draw_hud(self.window, self.current_player, self.player.score, high)
                 draw_powerups_hud(self.window, self.player, agora)
 
-                if agora - self.onboarding_time < 4000:
-                    txt = assets.fonts['hud'].render("W = Sobe | Fuja da faixa vermelha!", True, (255, 255, 255))
-                    rt = txt.get_rect(center=(LARGURA // 2, ALTURA // 2 + 50))
-                    pygame.draw.rect(self.window, (0, 0, 0, 150), rt.inflate(20, 10), border_radius=5)
-                    self.window.blit(txt, rt)
-
                 if self.world.check_death(self.player, agora):
-                    if self.player.score > self.high_score:
-                        self.high_score = self.player.score
-                        self.save_data['high_score'] = self.high_score
+                    if self.player.score > high:
+                        self.save_data["players"][self.current_player]["high_score"] = self.player.score
                         save_game(self.save_data)
                     self.state = ESTADO_GAMEOVER
                     self.shake_remaining = 6
 
+            # --- RENDER: GAMEOVER ---
             elif self.state == ESTADO_GAMEOVER:
-                offset_x = 0
-                if self.shake_remaining > 0:
-                    offset_x = [10, -10, 8, -8, 5, -5][self.shake_remaining - 1]
-                    self.shake_remaining -= 1
+                offset_x = [10, -10, 8, -8, 5, -5][self.shake_remaining - 1] if self.shake_remaining > 0 else 0
+                if self.shake_remaining > 0: self.shake_remaining -= 1
 
                 self.window.blit(assets.images['fundo_fim'], (offset_x, 0))
-                draw_text_shadow(self.window, assets.fonts['botao'], f"Pontuação: {self.player.score}", (255, 220, 50),
-                                 (LARGURA // 2, ALTURA // 2 + 15))
+                draw_text_shadow(self.window, assets.fonts['botao_grande'], f"Pontuação: {self.player.score}",
+                                 (255, 220, 50), (LARGURA // 2, ALTURA // 2 + 15))
 
-                r_btn = pygame.Rect(LARGURA // 2 - 185, ALTURA // 2 + 65, 170, 58)
-                m_btn = pygame.Rect(LARGURA // 2 + 15, ALTURA // 2 + 65, 170, 58)
-                draw_button(self.window, r_btn, "RETRY", "R", r_btn.collidepoint(mouse))
-                draw_button(self.window, m_btn, "MENU", "M", m_btn.collidepoint(mouse))
+                r_btn = pygame.Rect(LARGURA // 2 - 165, ALTURA // 2 + 65, 150, 45)
+                m_btn = pygame.Rect(LARGURA // 2 + 15, ALTURA // 2 + 65, 150, 45)
+                draw_button(self.window, r_btn, "RETRY", r_btn.collidepoint(mouse))
+                draw_button(self.window, m_btn, "MENU", m_btn.collidepoint(mouse))
 
             pygame.display.flip()
+
+    def _try_create_player(self):
+        nome = self.input_text.strip()
+        if not nome:
+            self.input_error = "Nome não pode ser vazio!"
+        elif nome in self.save_data["players"]:
+            self.input_error = "Player já cadastrado!"
+        else:
+            self.save_data["players"][nome] = {"high_score": 0}
+            save_game(self.save_data)
+            self.start_game(nome)
 
 
 if __name__ == "__main__":

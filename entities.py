@@ -62,10 +62,8 @@ class PowerUp:
 
     def draw(self, surface, camera_y):
         if self.coletado: return
-        # Centraliza o powerup visualmente no tile
         sx = int(self.wx) + (TAMANHO_TILE - self.TAMANHO) // 2
         sy = int(self.wy - camera_y) + (TAMANHO_TILE - self.TAMANHO) // 2
-
         if -self.TAMANHO <= sy <= ALTURA:
             t = pygame.time.get_ticks()
             alpha = int(120 + 80 * abs((t % 800) / 400.0 - 1))
@@ -89,7 +87,7 @@ class VitoriaRegia:
     def draw(self, surface, camera_y):
         sy = int(self.wy - camera_y)
         if -self.TAMANHO <= sy <= ALTURA:
-            sx = int(self.wx)
+            sx = int(self.wx) + (TAMANHO_TILE - self.TAMANHO) // 2
             pygame.draw.rect(surface, (60, 180, 70), (sx, sy, self.TAMANHO, self.TAMANHO), border_radius=5)
             pygame.draw.rect(surface, (25, 110, 35), (sx, sy, self.TAMANHO, self.TAMANHO), 2, border_radius=5)
 
@@ -111,7 +109,6 @@ class Player:
         self.slot_atual = 0
 
     def rect(self, camera_y):
-        # Hitbox ligeiramente menor para o player não morrer raspando
         return pygame.Rect(int(self.wx) + 8, int(self.wy - camera_y) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
 
     def world_rect(self):
@@ -135,7 +132,7 @@ class Player:
         elif key == pygame.K_d:
             novo_wx += TAMANHO_TILE; self.imagem = assets.images['p_dir']
 
-        test_rect = pygame.Rect(int(novo_wx) + 4, int(novo_wy) + 4, TAMANHO_TILE - 8, TAMANHO_TILE - 8)
+        test_rect = pygame.Rect(int(novo_wx) + 8, int(novo_wy) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
         if not self.world.colide_com_arvore(test_rect):
             if self.tronco_atual and key in [pygame.K_a, pygame.K_d]:
                 novo_slot = self.slot_atual + (1 if key == pygame.K_d else -1)
@@ -243,8 +240,8 @@ class Arvore:
         self.linha, self.wx, self.wy, self.nascida_em = linha, float(wx), float(linha * TAMANHO_TILE), nascida_em
 
     def world_rect(self):
-        # Hitbox perfeitamente centralizada na base/meio do tile (Impede colisao injusta)
-        return pygame.Rect(int(self.wx) + 10, int(self.wy) + 10, TAMANHO_TILE - 20, TAMANHO_TILE - 20)
+        # Hitbox contida em apenas 1 tile.
+        return pygame.Rect(int(self.wx) + 8, int(self.wy) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
 
     def draw(self, surface, camera_y, agora, bioma):
         sy = int(self.wy - camera_y)
@@ -253,22 +250,20 @@ class Arvore:
             tempo = max(0, agora - self.nascida_em)
             alpha = int(255 * (tempo / ARVORE_APARECIMENTO_MS)) if tempo < ARVORE_APARECIMENTO_MS else 255
 
-            # Desenhos ajustados para caber perfeitamente no centro do tile 48x48
+            # Centro exato do tile 48x48 é 24
             cx = TAMANHO_TILE // 2
+
             if bioma == "areia":
-                # Cacto
-                pygame.draw.rect(surf, (60, 140, 60), (cx - 6, 8, 12, 32), border_radius=4)
-                pygame.draw.rect(surf, (60, 140, 60), (cx - 14, 16, 10, 6), border_radius=3)
-                pygame.draw.rect(surf, (60, 140, 60), (cx + 4, 20, 10, 6), border_radius=3)
-                pygame.draw.rect(surf, (110, 70, 35), (cx - 4, 38, 8, 6), border_radius=2)
+                pygame.draw.rect(surf, (60, 140, 60), (cx - 4, 8, 8, 32), border_radius=4)
+                pygame.draw.rect(surf, (60, 140, 60), (cx - 10, 16, 6, 6), border_radius=3)
+                pygame.draw.rect(surf, (60, 140, 60), (cx + 4, 20, 6, 6), border_radius=3)
+                pygame.draw.rect(surf, (110, 70, 35), (cx - 3, 38, 6, 6), border_radius=2)
             elif bioma == "gelo":
-                # Pinheiro
-                pygame.draw.polygon(surf, (50, 120, 60), [(cx, 4), (cx - 18, 34), (cx + 18, 34)])
-                pygame.draw.rect(surf, (110, 70, 35), (cx - 5, 34, 10, 10), border_radius=2)
+                pygame.draw.polygon(surf, (50, 120, 60), [(cx, 4), (cx - 14, 34), (cx + 14, 34)])
+                pygame.draw.rect(surf, (110, 70, 35), (cx - 4, 34, 8, 10), border_radius=2)
             else:
-                # Arvore comum
-                pygame.draw.circle(surf, (40, 150, 50), (cx, 18), 16)
-                pygame.draw.rect(surf, (110, 70, 35), (cx - 5, 24, 10, 20), border_radius=3)
+                pygame.draw.circle(surf, (40, 150, 50), (cx, 18), 12)
+                pygame.draw.rect(surf, (110, 70, 35), (cx - 4, 24, 8, 20), border_radius=3)
 
             surf.set_alpha(alpha)
             surface.blit(surf, (int(self.wx), sy))

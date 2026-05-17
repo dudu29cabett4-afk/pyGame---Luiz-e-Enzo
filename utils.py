@@ -9,12 +9,18 @@ def clamp(v, lo, hi):
     return max(lo, min(hi, v))
 
 def load_save():
+    default_data = {"players": {}}
     if os.path.exists(SAVE_FILE):
         try:
             with open(SAVE_FILE, 'r') as f:
-                return json.load(f)
+                data = json.load(f)
+                # Migração de save antigo para o novo formato de multiplos players
+                if "high_score" in data and "players" not in data:
+                    return {"players": {"Visitante": {"high_score": data["high_score"]}}}
+                if "players" not in data: return default_data
+                return data
         except: pass
-    return {"high_score": 0}
+    return default_data
 
 def save_game(data):
     try:
@@ -23,7 +29,6 @@ def save_game(data):
     except: pass
 
 def draw_text_shadow(surface, font, text, color, pos, shadow_color=(0,0,0), offset=2):
-    """Desenha um texto com sombra para polimento visual."""
     t_shadow = font.render(text, True, shadow_color)
     t_main = font.render(text, True, color)
     rect = t_main.get_rect(center=pos)

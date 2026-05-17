@@ -7,6 +7,7 @@ images = {}
 fonts = {}
 
 
+# ... (Mesmas funcoes de antes: criar_tile_grama, escalar_carro, etc)
 def criar_tile_grama(img, tamanho=TAMANHO_TILE):
     w, h = img.get_size()
     lado = min(w, h)
@@ -63,11 +64,13 @@ def fazer_img_crocodilo(num_slots: int) -> pygame.Surface:
 def load_all_assets():
     base = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd()
 
-    fonts['botao'] = pygame.font.SysFont("arial", 28, bold=True)
-    fonts['score'] = pygame.font.SysFont("arial", 24, bold=True)
-    fonts['kbd'] = pygame.font.SysFont("arial", 14, bold=True)
-    fonts['hud'] = pygame.font.SysFont("arial", 20, bold=True)
-    fonts['titulo'] = pygame.font.SysFont("arial", 19)
+    # Fontes Menores para Menu
+    fonts['botao'] = pygame.font.SysFont("arial", 20, bold=True)
+    fonts['botao_grande'] = pygame.font.SysFont("arial", 24, bold=True)
+    fonts['score'] = pygame.font.SysFont("arial", 22, bold=True)
+    fonts['kbd'] = pygame.font.SysFont("arial", 12, bold=True)
+    fonts['hud'] = pygame.font.SysFont("arial", 18, bold=True)
+    fonts['titulo'] = pygame.font.SysFont("arial", 16)
 
     def load_img(path, scale=None):
         try:
