@@ -84,30 +84,29 @@ class World:
             tipo = self.gerar_tile(l)[1]
             bioma = self.fixar_bioma_linha(l, score)
 
-            # --- Árvores e PowerUps (Garante que nunca caem no mesmo X) ---
+            # --- CORREÇÃO 6: Arvores e PowerUps sem colisao entre si ---
             if tipo == TIPO_GRAMA and l < -SAFE_ZONE_LINHAS:
-                colunas_ocupadas = set()
+                # Rastrea todas as arvores ativas nesta linha específica
+                ocupadas = {a.wx for a in self.arvores_ativas if a.linha == l}
 
-                # Chance adaptativa de Arvores
                 chance_arvore = ARVORE_CHANCE_BASE + min(score / ARVORE_CHANCE_EXTRA_SCORE, ARVORE_CHANCE_EXTRA_MAX)
-                if random.random() < chance_arvore:
-                    if not any(a.linha == l for a in self.arvores_ativas):
-                        wx = random.randint(1, (LARGURA // TAMANHO_TILE) - 2) * TAMANHO_TILE
-                        self.arvores_ativas.append(Arvore(l, wx, agora))
-                        colunas_ocupadas.add(wx)
+                if random.random() < chance_arvore and not any(a.linha == l for a in self.arvores_ativas):
+                    wx = random.randint(1, (LARGURA // TAMANHO_TILE) - 2) * TAMANHO_TILE
+                    self.arvores_ativas.append(Arvore(l, wx, agora))
+                    ocupadas.add(wx)
 
-                # Chance de Power-Up
                 if len([p for p in self.powerups_ativos if not p.coletado]) < MAX_POWERUPS_ATIVOS:
                     if not any(p.wy // TAMANHO_TILE == l for p in self.powerups_ativos):
                         if random.random() < POWERUP_CHANCE_SPAWN:
-                            colunas_livres = [c * TAMANHO_TILE for c in range(1, (LARGURA // TAMANHO_TILE) - 1) if
-                                              c * TAMANHO_TILE not in colunas_ocupadas]
-                            if colunas_livres:
-                                wx = random.choice(colunas_livres)
+                            # Filtra as posições ocupadas antes de gerar o powerup
+                            livres = [c * TAMANHO_TILE for c in range(1, (LARGURA // TAMANHO_TILE) - 1) if
+                                      c * TAMANHO_TILE not in ocupadas]
+                            if livres:
+                                wx = random.choice(livres)
                                 pu_tipo = "escudo" if random.random() < 0.5 else "xp2"
                                 self.powerups_ativos.append(PowerUp(wx, l * TAMANHO_TILE, pu_tipo))
 
-            # --- Carros (Gaps Randômicos a cada spawn) ---
+            # --- CORREÇÃO 2: Impedir o esvaziamento das Ruas ---
             if tipo == TIPO_ESTRADA:
                 if l not in self.lane_data:
                     d = 1 if l % 2 == 0 else -1
@@ -115,10 +114,13 @@ class World:
 
                 ld = self.lane_data[l]
                 ja_existem = [c for c in self.carros_ativos if c.linha == l]
+
+                # Se a rua esvaziou inteira, reseta a variavel next_x para a borda
                 if not ja_existem:
+                    ld['next_x'] = -100 if ld['dir'] == 1 else LARGURA
                     img = random.choice(assets.images['carros_r'] if ld['dir'] == 1 else assets.images['carros_l'])
                     self.carros_ativos.append(Carro(l, ld['next_x'], ld['v'], ld['dir'], img))
-                    ld['next_x'] += ld['dir'] * random.randint(200, 400)  # Gap dinamico
+                    ld['next_x'] += ld['dir'] * random.randint(200, 400)
                 else:
                     ultimo = max(ja_existem, key=lambda c: c.x * ld['dir'])
                     if (ld['dir'] == 1 and ultimo.x >= ld['next_x']) or (ld['dir'] == -1 and ultimo.x <= ld['next_x']):
@@ -127,7 +129,7 @@ class World:
                         self.carros_ativos.append(Carro(l, spawn_x, ld['v'], ld['dir'], img))
                         ld['next_x'] += ld['dir'] * random.randint(200, 400)
 
-            # --- Rio / Crocodilos (Quebrando o padrão) ---
+            # --- CORREÇÃO 2: Impedir o esvaziamento dos Rios ---
             elif tipo == TIPO_RIO and not self.rio_congelado(score):
                 if l not in self.lane_data:
                     d = 1 if l % 2 == 0 else -1
@@ -148,8 +150,9 @@ class World:
 
                     if not ja_existem:
                         slots = random.choice(TRONCO_SLOTS_OPCOES)
+                        ld['next_x'] = -(slots * TAMANHO_TILE) if ld['dir'] == 1 else LARGURA
                         self.troncos_ativos.append(Tronco(l, ld['next_x'], ld['v'], ld['dir'], slots, t_tipo))
-                        ld['next_x'] += ld['dir'] * random.randint(150, 350)  # Gap e tamanho dinamicos
+                        ld['next_x'] += ld['dir'] * random.randint(150, 350)
                     else:
                         ultimo = max(ja_existem, key=lambda c: c.x * ld['dir'])
                         if (ld['dir'] == 1 and ultimo.x >= ld['next_x']) or (
@@ -188,7 +191,12 @@ class World:
 
     def check_death(self, player, agora):
         py_screen = player.wy - self.camera_y
-        if py_screen >= ALTURA or py_screen < -TAMANHO_TILE: return True
+
+        # CORREÇÃO 1: Morte ao ser arrastado pelas bordas da tela horizontalmente
+        if player.wx < -20 or player.wx > LARGURA - TAMANHO_TILE + 20:
+            return True
+        if py_screen >= ALTURA or py_screen < -TAMANHO_TILE:
+            return True
 
         prect = player.rect(self.camera_y)
         tipo = self.gerar_tile(int(player.wy // TAMANHO_TILE))[1]
