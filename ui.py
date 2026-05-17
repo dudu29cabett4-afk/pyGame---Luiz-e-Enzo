@@ -14,9 +14,10 @@ def draw_button(surface, rect, label, hover, font_key='botao'):
 
 
 def draw_hud(surface, player_name, score, high_score):
-    draw_text_shadow(surface, assets.fonts['hud'], f"Player: {player_name}", (150, 220, 255), (10, 10), offset=1)
-    draw_text_shadow(surface, assets.fonts['score'], f"Score: {score}", (255, 255, 255), (10, 35))
-    draw_text_shadow(surface, assets.fonts['hud'], f"High: {high_score}", (255, 200, 50), (10, 60))
+    draw_text_shadow(surface, assets.fonts['hud'], f"Player: {player_name}", (150, 220, 255), (15, 10),
+                     anchor="topleft", offset=1)
+    draw_text_shadow(surface, assets.fonts['score'], f"Score: {score}", (255, 255, 255), (15, 30), anchor="topleft")
+    draw_text_shadow(surface, assets.fonts['hud'], f"High: {high_score}", (255, 200, 50), (15, 55), anchor="topleft")
 
 
 def draw_danger_zone(surface, camera_y, player_wy):
@@ -41,11 +42,11 @@ def draw_controls(surface):
     pygame.draw.rect(painel, (255, 200, 50), (0, 0, pw, ph), 3, border_radius=14)
     surface.blit(painel, (px, py))
 
-    draw_text_shadow(surface, assets.fonts['botao_grande'], "CONTROLES", (255, 210, 50), (LARGURA // 2, py + 30))
+    draw_text_shadow(surface, assets.fonts['botao_grande'], "CONTROLS", (255, 210, 50), (LARGURA // 2, py + 30))
     pygame.draw.line(surface, (255, 200, 50), (px + 20, py + 50), (px + pw - 20, py + 50), 1)
 
     msgs = [
-        "W, A, S, D - Movimentar",
+        "W A S D - Movimentar",
         "R - Tentar Novamente (Retry)",
         "M - Voltar ao Menu",
         "ESC - Fechar telas/Voltar"
@@ -84,15 +85,13 @@ def draw_powerups_hud(surface, player, agora):
                             f"XP x2 {(player.xp2_ate - agora) // 1000 + 1}s", (255, 210, 80))
 
 
-# --- Telas da Implementação 1 ---
 def draw_new_player_screen(surface, input_text, error_msg, mouse_pos):
     overlay = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 200))
     surface.blit(overlay, (0, 0))
 
-    draw_text_shadow(surface, assets.fonts['botao_grande'], "CRIAR NOVO JOGADOR", (255, 210, 50), (LARGURA // 2, 150))
+    draw_text_shadow(surface, assets.fonts['botao_grande'], "NEW PLAYER", (255, 210, 50), (LARGURA // 2, 150))
 
-    # Input Box
     box_rect = pygame.Rect(LARGURA // 2 - 120, 200, 240, 40)
     pygame.draw.rect(surface, (20, 20, 40), box_rect, border_radius=5)
     pygame.draw.rect(surface, (255, 255, 255), box_rect, 2, border_radius=5)
@@ -113,18 +112,26 @@ def draw_new_player_screen(surface, input_text, error_msg, mouse_pos):
     return btn_create, btn_back
 
 
-def draw_load_player_screen(surface, players_dict, mouse_pos):
+def draw_load_player_screen(surface, players_dict, mouse_pos, scroll_y):
     overlay = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 200))
     surface.blit(overlay, (0, 0))
 
-    draw_text_shadow(surface, assets.fonts['botao_grande'], "SELECIONAR JOGADOR", (255, 210, 50), (LARGURA // 2, 100))
+    draw_text_shadow(surface, assets.fonts['botao_grande'], "SELECT PLAYER", (255, 210, 50), (LARGURA // 2, 80))
 
-    play_buttons = {}  # Dicionario pra retornar o Player ligado ao Botao
+    play_buttons = {}
+    delete_buttons = {}
 
-    start_y = 160
-    # Limita pra mostrar só os ultimos 6 se tiver muitos
-    players = list(players_dict.keys())[-6:]
+    view_rect = pygame.Rect(LARGURA // 2 - 180, 120, 360, 420)
+    pygame.draw.rect(surface, (15, 18, 42), view_rect, border_radius=10)
+    pygame.draw.rect(surface, (100, 100, 150), view_rect, 2, border_radius=10)
+
+    surface.set_clip(view_rect)
+
+    players = list(players_dict.keys())
+    start_y = 135 + scroll_y
+
+    active_mouse = mouse_pos if view_rect.collidepoint(mouse_pos) else (-1, -1)
 
     if not players:
         draw_text_shadow(surface, assets.fonts['hud'], "Nenhum jogador cadastrado.", (150, 150, 150),
@@ -133,25 +140,37 @@ def draw_load_player_screen(surface, players_dict, mouse_pos):
         for p in players:
             score = players_dict[p].get("high_score", 0)
 
-            # Fundo da linha
             row_rect = pygame.Rect(LARGURA // 2 - 160, start_y, 320, 50)
-            pygame.draw.rect(surface, (20, 20, 45), row_rect, border_radius=8)
-            pygame.draw.rect(surface, (100, 100, 150), row_rect, 1, border_radius=8)
+            pygame.draw.rect(surface, (30, 30, 60), row_rect, border_radius=8)
 
-            # Textos
             n_txt = assets.fonts['hud'].render(p, True, (255, 255, 255))
-            s_txt = assets.fonts['kbd'].render(f"High Score: {score}", True, (255, 200, 50))
+            s_txt = assets.fonts['kbd'].render(f"High: {score}", True, (255, 200, 50))
             surface.blit(n_txt, (row_rect.x + 15, row_rect.y + 8))
             surface.blit(s_txt, (row_rect.x + 15, row_rect.y + 30))
 
-            # Botao Play no final da linha estilo Terraria
-            btn_play = pygame.Rect(row_rect.right - 80, row_rect.y + 10, 70, 30)
-            draw_button(surface, btn_play, "PLAY", btn_play.collidepoint(mouse_pos), 'kbd')
+            # Botao Play
+            btn_play = pygame.Rect(row_rect.right - 105, row_rect.y + 10, 70, 30)
+            draw_button(surface, btn_play, "PLAY", btn_play.collidepoint(active_mouse), 'kbd')
+
+            # Botao Deletar (Menor)
+            btn_del = pygame.Rect(row_rect.right - 28, row_rect.y + 12, 20, 20)
+            hover_del = btn_del.collidepoint(active_mouse)
+            pygame.draw.rect(surface, (200, 50, 50) if hover_del else (120, 30, 30), btn_del, border_radius=4)
+            pygame.draw.rect(surface, (255, 100, 100), btn_del, 1, border_radius=4)
+
+            # Cruz branca (X) ajustada para o botão menor
+            pygame.draw.line(surface, (255, 255, 255), (btn_del.x + 5, btn_del.y + 5),
+                             (btn_del.right - 5, btn_del.bottom - 5), 2)
+            pygame.draw.line(surface, (255, 255, 255), (btn_del.right - 5, btn_del.y + 5),
+                             (btn_del.x + 5, btn_del.bottom - 5), 2)
 
             play_buttons[p] = btn_play
-            start_y += 65
+            delete_buttons[p] = btn_del
+            start_y += 60
 
-    btn_back = pygame.Rect(LARGURA // 2 - 80, ALTURA - 100, 160, 40)
+    surface.set_clip(None)
+
+    btn_back = pygame.Rect(LARGURA // 2 - 80, ALTURA - 80, 160, 40)
     draw_button(surface, btn_back, "VOLTAR", btn_back.collidepoint(mouse_pos))
 
-    return play_buttons, btn_back
+    return play_buttons, delete_buttons, btn_back, view_rect
