@@ -29,7 +29,7 @@ def draw_danger_zone(surface, camera_y, player_wy):
         surface.blit(rect, (0, ALTURA - 40))
 
 
-def draw_controls(surface):
+def draw_control_setup(surface):
     overlay = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 180))
     surface.blit(overlay, (0, 0))
@@ -42,7 +42,7 @@ def draw_controls(surface):
     pygame.draw.rect(painel, (255, 200, 50), (0, 0, pw, ph), 3, border_radius=14)
     surface.blit(painel, (px, py))
 
-    draw_text_shadow(surface, assets.fonts['botao_grande'], "CONTROLS", (255, 210, 50), (LARGURA // 2, py + 30))
+    draw_text_shadow(surface, assets.fonts['botao_grande'], "CONTROL SETUP", (255, 210, 50), (LARGURA // 2, py + 30))
     pygame.draw.line(surface, (255, 200, 50), (px + 20, py + 50), (px + pw - 20, py + 50), 1)
 
     msgs = [
@@ -83,6 +83,22 @@ def draw_powerups_hud(surface, player, agora):
         desenhar_hud_status(surface, LARGURA - 120, 45, assets.images['pu_xp2'],
                             player.xp2_ate - agora, POWERUP_XP2_DURACAO_MS,
                             f"XP x2 {(player.xp2_ate - agora) // 1000 + 1}s", (255, 210, 80))
+
+
+def draw_options_screen(surface, mouse_pos):
+    overlay = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 200))
+    surface.blit(overlay, (0, 0))
+
+    draw_text_shadow(surface, assets.fonts['botao_grande'], "OPTIONS", (255, 210, 50), (LARGURA // 2, 180))
+
+    btn_ctrl = pygame.Rect(LARGURA // 2 - 100, 260, 200, 45)
+    btn_back = pygame.Rect(LARGURA // 2 - 100, 320, 200, 45)
+
+    draw_button(surface, btn_ctrl, "CONTROL SETUP", btn_ctrl.collidepoint(mouse_pos))
+    draw_button(surface, btn_back, "VOLTAR", btn_back.collidepoint(mouse_pos))
+
+    return btn_ctrl, btn_back
 
 
 def draw_new_player_screen(surface, input_text, error_msg, mouse_pos):
@@ -128,7 +144,8 @@ def draw_load_player_screen(surface, players_dict, mouse_pos, scroll_y):
 
     surface.set_clip(view_rect)
 
-    players = list(players_dict.keys())
+    # Ordem Reversa: Os criados mais recentemente (fim do dict) aparecem primeiro
+    players = list(players_dict.keys())[::-1]
     start_y = 135 + scroll_y
 
     active_mouse = mouse_pos if view_rect.collidepoint(mouse_pos) else (-1, -1)
@@ -148,17 +165,14 @@ def draw_load_player_screen(surface, players_dict, mouse_pos, scroll_y):
             surface.blit(n_txt, (row_rect.x + 15, row_rect.y + 8))
             surface.blit(s_txt, (row_rect.x + 15, row_rect.y + 30))
 
-            # Botao Play
             btn_play = pygame.Rect(row_rect.right - 105, row_rect.y + 10, 70, 30)
             draw_button(surface, btn_play, "PLAY", btn_play.collidepoint(active_mouse), 'kbd')
 
-            # Botao Deletar (Menor)
             btn_del = pygame.Rect(row_rect.right - 28, row_rect.y + 12, 20, 20)
             hover_del = btn_del.collidepoint(active_mouse)
             pygame.draw.rect(surface, (200, 50, 50) if hover_del else (120, 30, 30), btn_del, border_radius=4)
             pygame.draw.rect(surface, (255, 100, 100), btn_del, 1, border_radius=4)
 
-            # Cruz branca (X) ajustada para o botão menor
             pygame.draw.line(surface, (255, 255, 255), (btn_del.x + 5, btn_del.y + 5),
                              (btn_del.right - 5, btn_del.bottom - 5), 2)
             pygame.draw.line(surface, (255, 255, 255), (btn_del.right - 5, btn_del.y + 5),
@@ -174,3 +188,71 @@ def draw_load_player_screen(surface, players_dict, mouse_pos, scroll_y):
     draw_button(surface, btn_back, "VOLTAR", btn_back.collidepoint(mouse_pos))
 
     return play_buttons, delete_buttons, btn_back, view_rect
+
+
+def draw_leaderboard_screen(surface, players_dict, mouse_pos, scroll_y):
+    overlay = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 200))
+    surface.blit(overlay, (0, 0))
+
+    draw_text_shadow(surface, assets.fonts['botao_grande'], "LEADERBOARD", (255, 210, 50), (LARGURA // 2, 80))
+
+    view_rect = pygame.Rect(LARGURA // 2 - 180, 120, 360, 420)
+    pygame.draw.rect(surface, (15, 18, 42), view_rect, border_radius=10)
+    pygame.draw.rect(surface, (100, 100, 150), view_rect, 2, border_radius=10)
+
+    surface.set_clip(view_rect)
+
+    # Ordena do maior score pro menor
+    sorted_players = sorted(players_dict.items(), key=lambda x: x[1]['high_score'], reverse=True)
+    start_y = 135 + scroll_y
+
+    if not sorted_players:
+        draw_text_shadow(surface, assets.fonts['hud'], "Nenhum dado.", (150, 150, 150), (LARGURA // 2, start_y + 50))
+    else:
+        for i, (p_name, data) in enumerate(sorted_players):
+            row_rect = pygame.Rect(LARGURA // 2 - 170, start_y, 340, 50)
+
+            # Cores do Ranking Ouro, Prata, Bronze, e Comum
+            if i == 0:
+                bg_cor = (255, 200, 0)
+                rank_cor = (150, 100, 0)
+            elif i == 1:
+                bg_cor = (200, 200, 200)
+                rank_cor = (100, 100, 100)
+            elif i == 2:
+                bg_cor = (205, 127, 50)
+                rank_cor = (100, 50, 20)
+            else:
+                bg_cor = (30, 30, 50)
+                rank_cor = (150, 150, 150)
+
+            pygame.draw.rect(surface, bg_cor, row_rect, border_radius=10)
+
+            # Texto Esquerda (#1)
+            rank_txt = assets.fonts['botao'].render(f"#{i + 1}", True, rank_cor)
+            surface.blit(rank_txt, rank_txt.get_rect(center=(row_rect.x + 30, row_rect.centery)))
+
+            # Texto Centro (Nome)
+            n_cor = (0, 0, 0) if i < 3 else (255, 255, 255)
+            draw_text_shadow(surface, assets.fonts['botao'], p_name, n_cor, (row_rect.centerx - 20, row_rect.centery),
+                             offset=(0 if i < 3 else 1))
+
+            # Box de Pontuacao na Direita
+            box_score = pygame.Rect(row_rect.right - 80, row_rect.y + 10, 70, 30)
+            box_surf = pygame.Surface((box_score.w, box_score.h), pygame.SRCALPHA)
+            pygame.draw.rect(box_surf, (0, 0, 0, 80), (0, 0, box_score.w, box_score.h), border_radius=6)
+            surface.blit(box_surf, box_score)
+
+            s_cor = (255, 255, 255) if i < 3 else (255, 200, 50)
+            s_txt = assets.fonts['kbd'].render(str(data['high_score']), True, s_cor)
+            surface.blit(s_txt, s_txt.get_rect(center=box_score.center))
+
+            start_y += 60
+
+    surface.set_clip(None)
+
+    btn_back = pygame.Rect(LARGURA // 2 - 80, ALTURA - 80, 160, 40)
+    draw_button(surface, btn_back, "VOLTAR", btn_back.collidepoint(mouse_pos))
+
+    return btn_back, view_rect

@@ -6,8 +6,8 @@ import assets
 from utils import load_save, save_game, draw_text_shadow, clamp
 from world import World
 from entities import Player
-from ui import draw_button, draw_hud, draw_danger_zone, draw_controls, draw_powerups_hud, draw_new_player_screen, \
-    draw_load_player_screen
+from ui import draw_button, draw_hud, draw_danger_zone, draw_control_setup, draw_powerups_hud, draw_new_player_screen, \
+    draw_load_player_screen, draw_options_screen, draw_leaderboard_screen
 
 
 class Game:
@@ -25,7 +25,6 @@ class Game:
         self.player = None
         self.current_player = None
 
-        self.show_controls = False
         self.onboarding_time = 0
         self.shake_remaining = 0
         self.input_text = ""
@@ -53,31 +52,60 @@ class Game:
 
                 # --- MENU PRINCIPAL ---
                 if self.state == ESTADO_MENU:
-                    btn_new = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 10, 160, 45)
-                    btn_load = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 45, 160, 45)
-                    btn_ctrl = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 100, 160, 45)
-                    btn_fechar_ctrl = pygame.Rect(LARGURA // 2 - 75, (ALTURA - 260) // 2 + 205, 150, 35)
+                    btn_new = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 60, 160, 45)
+                    btn_load = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 5, 160, 45)
+                    btn_lb = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 50, 160, 45)
+                    btn_opt = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 105, 160, 45)
 
-                    if event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_c: self.show_controls = not self.show_controls
-                        if event.key == pygame.K_ESCAPE: self.show_controls = False
-
-                    # Captura o CLIQUE (Mouse down) apenas uma vez
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                        if self.show_controls and btn_fechar_ctrl.collidepoint(mouse):
-                            self.show_controls = False
-                        elif not self.show_controls:
-                            if btn_ctrl.collidepoint(mouse):
-                                self.show_controls = True
-                            elif btn_new.collidepoint(mouse):
-                                self.state = ESTADO_NEW_PLAYER
-                                self.input_text = ""
-                                self.input_error = ""
-                            elif btn_load.collidepoint(mouse):
-                                self.state = ESTADO_LOAD_PLAYER
-                                self.scroll_y = 0
+                        if btn_new.collidepoint(mouse):
+                            self.state = ESTADO_NEW_PLAYER
+                            self.input_text = ""
+                            self.input_error = ""
+                        elif btn_load.collidepoint(mouse):
+                            self.state = ESTADO_LOAD_PLAYER
+                            self.scroll_y = 0
+                        elif btn_lb.collidepoint(mouse):
+                            self.state = ESTADO_LEADERBOARD
+                            self.scroll_y = 0
+                        elif btn_opt.collidepoint(mouse):
+                            self.state = ESTADO_OPTIONS
 
-                # --- MENU NOVO JOGADOR ---
+                # --- OPÇÕES ---
+                elif self.state == ESTADO_OPTIONS:
+                    if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                        self.state = ESTADO_MENU
+
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        btn_ctrl = pygame.Rect(LARGURA // 2 - 100, 260, 200, 45)
+                        btn_back = pygame.Rect(LARGURA // 2 - 100, 320, 200, 45)
+
+                        if btn_ctrl.collidepoint(mouse):
+                            self.state = ESTADO_CONTROLS
+                        elif btn_back.collidepoint(mouse):
+                            self.state = ESTADO_MENU
+
+                # --- CONTROL SETUP ---
+                elif self.state == ESTADO_CONTROLS:
+                    if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                        self.state = ESTADO_OPTIONS
+
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        btn_fechar = pygame.Rect(LARGURA // 2 - 75, (ALTURA - 260) // 2 + 205, 150, 35)
+                        if btn_fechar.collidepoint(mouse): self.state = ESTADO_OPTIONS
+
+                # --- LEADERBOARD ---
+                elif self.state == ESTADO_LEADERBOARD:
+                    if event.type == pygame.MOUSEWHEEL:
+                        self.scroll_y += event.y * 30
+                    elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                        self.state = ESTADO_MENU
+
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        btn_back = pygame.Rect(LARGURA // 2 - 80, ALTURA - 80, 160, 40)
+                        if btn_back.collidepoint(mouse): self.state = ESTADO_MENU
+
+                # --- NOVO JOGADOR ---
                 elif self.state == ESTADO_NEW_PLAYER:
                     if event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE:
@@ -99,7 +127,7 @@ class Game:
                         elif btn_back.collidepoint(mouse):
                             self.state = ESTADO_MENU
 
-                # --- MENU CARREGAR JOGADOR ---
+                # --- CARREGAR JOGADOR ---
                 elif self.state == ESTADO_LOAD_PLAYER:
                     if event.type == pygame.MOUSEWHEEL:
                         self.scroll_y += event.y * 30
@@ -114,8 +142,10 @@ class Game:
                             self.state = ESTADO_MENU
 
                         elif view_rect.collidepoint(mouse):
+                            players_rev = list(self.save_data["players"].keys())[::-1]
                             start_y = 135 + self.scroll_y
-                            for p in list(self.save_data["players"].keys()):
+
+                            for p in players_rev:
                                 row_rect = pygame.Rect(LARGURA // 2 - 160, start_y, 320, 50)
                                 btn_play = pygame.Rect(row_rect.right - 105, row_rect.y + 10, 70, 30)
                                 btn_del = pygame.Rect(row_rect.right - 28, row_rect.y + 12, 20, 20)
@@ -150,22 +180,37 @@ class Game:
 
             self.window.fill((0, 0, 0))
 
-            # --- DRAW CALLS ---
+            # --- RENDER CALLS ---
             if self.state == ESTADO_MENU:
                 self.window.blit(assets.images['fundo'], (0, 0))
 
-                btn_new = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 10, 160, 45)
-                btn_load = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 45, 160, 45)
-                btn_ctrl = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 100, 160, 45)
+                btn_new = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 60, 160, 45)
+                btn_load = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 5, 160, 45)
+                btn_lb = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 50, 160, 45)
+                btn_opt = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 105, 160, 45)
 
                 draw_button(self.window, btn_new, "NEW PLAYER", btn_new.collidepoint(mouse))
                 draw_button(self.window, btn_load, "LOAD PLAYER", btn_load.collidepoint(mouse))
-                draw_button(self.window, btn_ctrl, "CONTROLS", btn_ctrl.collidepoint(mouse))
+                draw_button(self.window, btn_lb, "LEADERBOARD", btn_lb.collidepoint(mouse))
+                draw_button(self.window, btn_opt, "OPTIONS", btn_opt.collidepoint(mouse))
 
-                if self.show_controls:
-                    draw_controls(self.window)
-                    btn_fechar = pygame.Rect(LARGURA // 2 - 75, (ALTURA - 260) // 2 + 205, 150, 35)
-                    draw_button(self.window, btn_fechar, "FECHAR", btn_fechar.collidepoint(mouse))
+            elif self.state == ESTADO_OPTIONS:
+                self.window.blit(assets.images['fundo'], (0, 0))
+                draw_options_screen(self.window, mouse)
+
+            elif self.state == ESTADO_CONTROLS:
+                self.window.blit(assets.images['fundo'], (0, 0))
+                draw_options_screen(self.window, mouse)  # Fundo das opcoes
+                draw_control_setup(self.window)
+                btn_fechar = pygame.Rect(LARGURA // 2 - 75, (ALTURA - 260) // 2 + 205, 150, 35)
+                draw_button(self.window, btn_fechar, "FECHAR", btn_fechar.collidepoint(mouse))
+
+            elif self.state == ESTADO_LEADERBOARD:
+                self.window.blit(assets.images['fundo'], (0, 0))
+                total_height = len(self.save_data["players"]) * 60
+                max_scroll = min(0, 420 - total_height - 20)
+                self.scroll_y = clamp(self.scroll_y, max_scroll, 0)
+                draw_leaderboard_screen(self.window, self.save_data["players"], mouse, self.scroll_y)
 
             elif self.state == ESTADO_NEW_PLAYER:
                 self.window.blit(assets.images['fundo'], (0, 0))
@@ -227,7 +272,8 @@ class Game:
         else:
             self.save_data["players"][nome] = {"high_score": 0}
             save_game(self.save_data)
-            self.start_game(nome)
+            self.state = ESTADO_LOAD_PLAYER
+            self.scroll_y = 0
 
 
 if __name__ == "__main__":
