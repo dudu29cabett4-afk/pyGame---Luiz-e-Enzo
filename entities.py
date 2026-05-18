@@ -85,7 +85,6 @@ class VitoriaRegia:
         sy = int(self.wy - camera_y)
         if -TAMANHO_TILE <= sy <= ALTURA:
             sx = int(self.wx)
-            # Vitória régia agora ocupa o bloco inteiro (com um recorte simulando a folha)
             pygame.draw.rect(surface, (60, 180, 70), (sx + 4, sy + 4, 40, 40), border_radius=20)
             pygame.draw.rect(surface, (25, 110, 35), (sx + 4, sy + 4, 40, 40), 2, border_radius=20)
             pygame.draw.polygon(surface, (80, 170, 230), [(sx + 24, sy + 4), (sx + 16, sy + 18), (sx + 32, sy + 18)])
@@ -107,6 +106,13 @@ class Player:
         self.tronco_atual = None
         self.slot_atual = 0
 
+        # --- SISTEMA DE TWEENING E ANIMAÇÃO ---
+        self.anim_start = 0
+        self.anim_duracao = 100  # Duração da transição em milissegundos
+        self.visual_offset_x = 0.0
+        self.visual_offset_y = 0.0
+        self.last_move_axis = 'y'  # 'x' ou 'y' para saber o eixo do squash/stretch
+
     def rect(self, camera_y):
         return pygame.Rect(int(self.wx) + 8, int(self.wy - camera_y) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
 
@@ -120,12 +126,14 @@ class Player:
     def process_input(self, agora):
         if not self.input_buffer: return
         key = self.input_buffer.pop(0)
+
+        # Guarda a posição lógica ANTES de mover para gerar o delta de animação
+        old_wx, old_wy = self.wx, self.wy
         novo_wx, novo_wy = self.wx, self.wy
 
         if key == pygame.K_w:
             novo_wy -= TAMANHO_TILE;
             self.imagem = assets.images['p_cima']
-            # ALINHAMENTO DE GRADE (Impede que a hitbox encoste em árvores do lado)
             novo_wx = round(novo_wx / TAMANHO_TILE) * TAMANHO_TILE
         elif key == pygame.K_s:
             novo_wy += TAMANHO_TILE;
@@ -139,11 +147,14 @@ class Player:
             self.imagem = assets.images['p_dir']
 
         test_rect = pygame.Rect(int(novo_wx) + 8, int(novo_wy) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
+
+        # Se NÃO for colidir, realiza a mudança na lógica
         if not self.world.colide_com_arvore(test_rect):
             if self.tronco_atual and key in [pygame.K_a, pygame.K_d]:
                 novo_slot = self.slot_atual + (1 if key == pygame.K_d else -1)
                 if 0 <= novo_slot < self.tronco_atual.num_slots:
                     self.slot_atual = novo_slot
+                    self.wx = self.tronco_atual.slot_x_mundo(self.slot_atual)
                 else:
                     self.tronco_atual = None
                     self.wx = novo_wx
@@ -151,12 +162,37 @@ class Player:
                 self.wx, self.wy = novo_wx, novo_wy
                 self.tronco_atual = None
 
+        # Restrição de margens
+        self.wx = clamp(self.wx, 0.0, float(LARGURA - TAMANHO_TILE))
+
+        # --- GERAÇÃO DO OFFSET DE TWEENING ---
+        delta_x = old_wx - self.wx
+        delta_y = old_wy - self.wy
+
+        # Se houve alguma mudança real de posição (não trombou na parede nem em árvore)
+        if delta_x != 0 or delta_y != 0:
+            # Salva o eixo para definir qual lado achata na animação
+            self.last_move_axis = 'x' if abs(delta_x) > abs(delta_y) else 'y'
+
+            # Se já estava em transição (inputs enfileirados muito rápidos),
+            # não cancelamos, apenas acumulamos o offset restante do antigo com o novo!
+            tempo_passado = agora - self.anim_start
+            if tempo_passado < self.anim_duracao:
+                t = tempo_passado / self.anim_duracao
+                frac = (1 - t) ** 2  # Usamos quadratica (Ease-Out)
+                self.visual_offset_x = self.visual_offset_x * frac + delta_x
+                self.visual_offset_y = self.visual_offset_y * frac + delta_y
+            else:
+                self.visual_offset_x = delta_x
+                self.visual_offset_y = delta_y
+
+            self.anim_start = agora
+
+            # Atualização de pontuação acontece junto da aprovação do movimento lógico
             nova_linha = int(self.wy // TAMANHO_TILE)
             if nova_linha < self.linha_recorde:
                 self.linha_recorde = nova_linha
                 self.score += 2 if agora < self.xp2_ate else 1
-
-        self.wx = clamp(self.wx, 0.0, float(LARGURA - TAMANHO_TILE))
 
     def update(self, agora):
         self.process_input(agora)
@@ -178,13 +214,10 @@ class Player:
                 self.tronco_atual = None
             elif self.tronco_atual:
                 target_x = self.tronco_atual.slot_x_mundo(self.slot_atual)
-                # O personagem é limitado pela parede.
                 self.wx = clamp(target_x, 0.0, float(LARGURA - TAMANHO_TILE))
 
-                # Se a parede travou o jogador e o tronco passou reto, ele cai na água!
                 if self.tronco_atual.x > self.wx + 20 or self.tronco_atual.x + self.tronco_atual.largura < self.wx + 20:
                     self.tronco_atual = None
-
             else:
                 for t in [tr for tr in self.world.troncos_ativos if tr.linha == player_linha]:
                     if t.x <= self.wx < t.x + t.largura:
@@ -195,8 +228,47 @@ class Player:
             self.tronco_atual = None
 
     def draw(self, surface, camera_y, agora):
-        px, py = int(self.wx), int(self.wy - camera_y)
+        # --- CÁLCULO DA POSIÇÃO VISUAL (TWEENING + SQUASH) ---
+        cur_offset_x = 0
+        cur_offset_y = 0
+        img_to_draw = self.imagem
+        dx, dy = 0, 0  # Compensação para centralizar a imagem após distorção
 
+        tempo_anim = agora - self.anim_start
+        if tempo_anim < self.anim_duracao:
+            # t = Progresso da animação (0 a 1)
+            t = tempo_anim / self.anim_duracao
+            frac = (1 - t) ** 2  # Efeito Ease-Out (Rápido no começo, suave no fim)
+
+            cur_offset_x = self.visual_offset_x * frac
+            cur_offset_y = self.visual_offset_y * frac
+
+            # Distorção Squash and Stretch (curva parabólica que atinge pico de 25% no meio da animação t=0.5)
+            deform = 4 * t * (1 - t) * 0.25
+
+            if self.last_move_axis == 'x':
+                scale_x = int(TAMANHO_TILE * (1 + deform))
+                scale_y = int(TAMANHO_TILE * (1 - deform))
+            else:
+                scale_x = int(TAMANHO_TILE * (1 - deform))
+                scale_y = int(TAMANHO_TILE * (1 + deform))
+
+            img_to_draw = pygame.transform.scale(self.imagem, (scale_x, scale_y))
+            dx = (TAMANHO_TILE - scale_x) // 2
+            dy = (TAMANHO_TILE - scale_y) // 2
+        else:
+            self.visual_offset_x = 0
+            self.visual_offset_y = 0
+
+        # Aplica o offset puramente estético na lógica real
+        px = int(self.wx + cur_offset_x) + dx
+        py = int(self.wy + cur_offset_y - camera_y) + dy
+
+        # Centro do personagem para desenhar as auras e escudos no lugar certo
+        cx = int(self.wx + cur_offset_x)
+        cy = int(self.wy + cur_offset_y - camera_y)
+
+        # Desenha a barra flutuante em cima do tronco
         if self.tronco_atual:
             sy_t = int(self.tronco_atual.linha * TAMANHO_TILE - camera_y)
             for s in range(self.tronco_atual.num_slots):
@@ -206,17 +278,18 @@ class Player:
                 indicador.fill(cor)
                 surface.blit(indicador, (sx_slot + 4, sy_t + TAMANHO_TILE - 6))
 
+        # Desenha Escudo / Graça de morte / Personagem Normal
         if self.tem_escudo:
             aura = pygame.Surface((TAMANHO_TILE + 16, TAMANHO_TILE + 16), pygame.SRCALPHA)
             pulso = int(120 + 80 * abs((agora % 600) / 300.0 - 1))
             pygame.draw.circle(aura, (255, 220, 60, pulso), (TAMANHO_TILE // 2 + 8, TAMANHO_TILE // 2 + 8),
                                TAMANHO_TILE // 2 + 6)
-            surface.blit(aura, (px - 8, py - 8))
-            surface.blit(self.imagem, (px, py))
+            surface.blit(aura, (cx - 8, cy - 8))
+            surface.blit(img_to_draw, (px, py))
         elif agora < self.graca_ate:
-            if (agora // 80) % 2 == 0: surface.blit(self.imagem, (px, py))
+            if (agora // 80) % 2 == 0: surface.blit(img_to_draw, (px, py))
         else:
-            surface.blit(self.imagem, (px, py))
+            surface.blit(img_to_draw, (px, py))
 
 
 class Carro:
