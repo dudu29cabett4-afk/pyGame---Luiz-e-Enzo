@@ -321,6 +321,118 @@ class Tronco:
     def slot_do_x(self, wx): return max(0, min(self.num_slots - 1, round((wx - self.x) / TAMANHO_TILE)))
 
 
+def _px_arvore(surf, gx, gy, color, scale=3, dy=0):
+    py = (gy + dy) * scale
+    if 0 <= py < TAMANHO_TILE - scale + 1:
+        surf.fill(color, (gx * scale, py, scale, scale))
+
+
+def _desenhar_arvore_grama(surf):
+    """Carvalho em pixel art — copa contida no tile, sem contorno no ápice."""
+    S = 3
+    DY = 2
+    SHADOW = (34, 58, 30)
+    TRUNK_D = (92, 58, 34)
+    TRUNK_M = (122, 78, 46)
+    TRUNK_L = (158, 104, 62)
+    LEAF_D = (44, 98, 52)
+    LEAF_M = (68, 138, 72)
+    LEAF_L = (98, 176, 92)
+    LEAF_HI = (138, 206, 118)
+    OUTLINE = (28, 48, 28)
+
+    for gx in range(5, 11):
+        _px_arvore(surf, gx, 13, SHADOW, S, DY)
+
+    for gy in range(9, 13):
+        for gx in range(7, 9):
+            _px_arvore(surf, gx, gy, TRUNK_D if gx == 7 else TRUNK_M, S, DY)
+    _px_arvore(surf, 7, 8, TRUNK_L, S, DY)
+    _px_arvore(surf, 8, 10, TRUNK_L, S, DY)
+
+    canopy = [
+        (5, 5, LEAF_D), (6, 5, LEAF_D), (10, 5, LEAF_D), (11, 5, LEAF_D),
+        (4, 6, LEAF_D), (5, 6, LEAF_M), (6, 6, LEAF_M), (7, 6, LEAF_L), (8, 6, LEAF_L),
+        (9, 6, LEAF_M), (10, 6, LEAF_M), (11, 6, LEAF_D), (12, 6, LEAF_D),
+        (4, 7, LEAF_M), (5, 7, LEAF_L), (6, 7, LEAF_HI), (7, 7, LEAF_HI), (8, 7, LEAF_HI),
+        (9, 7, LEAF_L), (10, 7, LEAF_M), (11, 7, LEAF_D),
+        (5, 8, LEAF_M), (6, 8, LEAF_L), (7, 8, LEAF_M), (8, 8, LEAF_L), (9, 8, LEAF_M), (10, 8, LEAF_D),
+        (6, 4, LEAF_HI), (7, 4, LEAF_HI), (8, 4, LEAF_HI),
+    ]
+    for gx, gy, col in canopy:
+        _px_arvore(surf, gx, gy, col, S, DY)
+
+    for gx, gy in [(4, 6), (11, 6), (5, 5), (10, 5), (3, 7), (12, 7)]:
+        _px_arvore(surf, gx, gy, OUTLINE, S, DY)
+
+
+def _desenhar_arvore_cacto(surf):
+    """Saguaro em pixel art — braços e corpo dentro do tile."""
+    S = 3
+    DY = 2
+    DARK = (52, 108, 58)
+    MID = (74, 142, 78)
+    LIGHT = (108, 178, 102)
+    HI = (142, 208, 128)
+    OUTLINE = (34, 72, 42)
+    SPIKE = (198, 188, 120)
+    SAND = (194, 162, 108)
+
+    for gx in range(5, 11):
+        _px_arvore(surf, gx, 13, SAND, S, DY)
+
+    for gy in range(5, 12):
+        for gx in range(7, 9):
+            _px_arvore(surf, gx, gy, MID if gy < 10 else DARK, S, DY)
+    _px_arvore(surf, 7, 4, LIGHT, S, DY)
+    _px_arvore(surf, 8, 4, HI, S, DY)
+
+    for gx, gy in [(4, 8), (4, 7), (5, 7), (5, 6), (6, 6)]:
+        _px_arvore(surf, gx, gy, LIGHT if gy <= 7 else MID, S, DY)
+    for gx, gy in [(10, 9), (10, 8), (9, 8), (9, 7), (8, 7)]:
+        _px_arvore(surf, gx, gy, LIGHT if gy <= 8 else MID, S, DY)
+
+    for gx, gy in [(6, 7), (9, 8), (7, 3), (8, 10)]:
+        _px_arvore(surf, gx, gy, HI, S, DY)
+
+    for gx, gy in [(3, 8), (11, 9), (7, 12), (8, 12), (6, 6), (9, 7)]:
+        _px_arvore(surf, gx, gy, OUTLINE, S, DY)
+
+    for gx, gy in [(5, 6), (6, 5), (9, 7), (8, 6), (7, 8), (8, 8)]:
+        _px_arvore(surf, gx, gy, SPIKE, S, DY)
+
+
+def _desenhar_arvore_gelo(surf):
+    """Pinheiro nevado em pixel art."""
+    S = 3
+    DY = 2
+    SNOW = (228, 238, 248)
+    SNOW_SH = (188, 202, 220)
+    PINE_D = (38, 82, 58)
+    PINE_M = (54, 112, 74)
+    PINE_L = (78, 148, 98)
+    TRUNK_D = (82, 54, 36)
+    TRUNK_L = (118, 78, 50)
+    OUTLINE = (24, 48, 36)
+
+    for gx, gy in [(7, 11), (8, 11), (7, 12), (8, 12)]:
+        _px_arvore(surf, gx, gy, TRUNK_D, S, DY)
+    _px_arvore(surf, 7, 10, TRUNK_L, S, DY)
+
+    layers = [
+        [(7, 4, PINE_L), (6, 5, PINE_M), (7, 5, PINE_L), (8, 5, PINE_L), (9, 5, PINE_M), (7, 5, SNOW)],
+        [(5, 6, PINE_D), (6, 6, PINE_M), (7, 6, PINE_L), (8, 6, PINE_L), (9, 6, PINE_M), (10, 6, PINE_D),
+         (6, 6, SNOW), (8, 6, SNOW)],
+        [(5, 8, PINE_M), (6, 8, PINE_L), (7, 8, PINE_L), (8, 8, PINE_L), (9, 8, PINE_M), (7, 8, SNOW_SH)],
+    ]
+    for layer in layers:
+        for gx, gy, col in layer:
+            _px_arvore(surf, gx, gy, col, S, DY)
+
+    for gx, gy in [(5, 6), (10, 6), (4, 8), (11, 8)]:
+        _px_arvore(surf, gx, gy, OUTLINE, S, DY)
+
+
 class Arvore:
     def __init__(self, linha, wx, nascida_em=0):
         self.linha, self.wx, self.wy, self.nascida_em = linha, float(wx), float(linha * TAMANHO_TILE), nascida_em
@@ -334,19 +446,13 @@ class Arvore:
             surf = pygame.Surface((TAMANHO_TILE, TAMANHO_TILE), pygame.SRCALPHA)
             tempo = max(0, agora - self.nascida_em)
             alpha = int(255 * (tempo / ARVORE_APARECIMENTO_MS)) if tempo < ARVORE_APARECIMENTO_MS else 255
-            cx = TAMANHO_TILE // 2
 
             if bioma == "areia":
-                pygame.draw.rect(surf, (60, 140, 60), (cx - 4, 8, 8, 32), border_radius=4)
-                pygame.draw.rect(surf, (60, 140, 60), (cx - 10, 16, 6, 6), border_radius=3)
-                pygame.draw.rect(surf, (60, 140, 60), (cx + 4, 20, 6, 6), border_radius=3)
-                pygame.draw.rect(surf, (110, 70, 35), (cx - 3, 38, 6, 6), border_radius=2)
+                _desenhar_arvore_cacto(surf)
             elif bioma == "gelo":
-                pygame.draw.polygon(surf, (50, 120, 60), [(cx, 4), (cx - 14, 34), (cx + 14, 34)])
-                pygame.draw.rect(surf, (110, 70, 35), (cx - 4, 34, 8, 10), border_radius=2)
+                _desenhar_arvore_gelo(surf)
             else:
-                pygame.draw.circle(surf, (40, 150, 50), (cx, 18), 12)
-                pygame.draw.rect(surf, (110, 70, 35), (cx - 4, 24, 8, 20), border_radius=3)
+                _desenhar_arvore_grama(surf)
 
             surf.set_alpha(alpha)
             surface.blit(surf, (int(self.wx), sy))

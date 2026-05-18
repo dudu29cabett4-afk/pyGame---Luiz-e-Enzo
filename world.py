@@ -130,8 +130,9 @@ class World:
                 if len([p for p in self.powerups_ativos if not p.coletado]) < MAX_POWERUPS_ATIVOS:
                     if not any(p.wy // TAMANHO_TILE == l for p in self.powerups_ativos):
                         if random.random() < POWERUP_CHANCE_SPAWN:
-                            livres = [c * TAMANHO_TILE for c in range(1, (LARGURA // TAMANHO_TILE) - 1) if
-                                      c * TAMANHO_TILE not in ocupadas]
+                            cols_com_arvore = {int(a.wx // TAMANHO_TILE) for a in arvores_na_linha}
+                            livres = [c * TAMANHO_TILE for c in range(1, (LARGURA // TAMANHO_TILE) - 1)
+                                      if c * TAMANHO_TILE not in ocupadas and c not in cols_com_arvore]
                             if livres:
                                 wx = random.choice(livres)
                                 pu_tipo = "escudo" if random.random() < 0.5 else "xp2"
@@ -283,9 +284,9 @@ class World:
                         self.desenhar_agua_luxo(surface, sy, l, self.lane_data.get(l, {"dir": 1})["dir"])
 
         for v in self.vitorias_ativas: v.draw(surface, self.camera_y)
-        for pu in self.powerups_ativos: pu.draw(surface, self.camera_y)
         for f in self.fumacas_ativas: f.draw(surface, self.camera_y, agora)
         for t in self.troncos_ativos: surface.blit(t.img, (int(t.x), int(t.linha * TAMANHO_TILE - self.camera_y)))
         for c in self.carros_ativos: surface.blit(c.img, (int(c.x), int(c.linha * TAMANHO_TILE - self.camera_y)))
         for a in self.arvores_ativas: a.draw(surface, self.camera_y, agora, self.fixar_bioma_linha(a.linha, score))
+        for pu in self.powerups_ativos: pu.draw(surface, self.camera_y)
         self.particles[:] = [p for p in self.particles if p.draw(surface, self.camera_y, agora)]

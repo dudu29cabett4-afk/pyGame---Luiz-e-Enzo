@@ -1,15 +1,21 @@
 # main.py
 import pygame
 import sys
+import math
+import random
 from config import *
 import assets
-from utils import load_save, save_game, draw_text_shadow, clamp
+from utils import load_save, save_game, clamp
 from world import World
-from entities import Player
+from entities import Player, Particle
 from ui import (
     draw_button, draw_hud, draw_danger_zone, draw_control_setup,
     draw_powerups_hud, draw_new_player_screen, draw_load_player_screen,
-    draw_options_screen, draw_leaderboard_screen, draw_game_over_screen
+    draw_options_screen, draw_leaderboard_screen, draw_game_over_screen,
+    GAMEOVER_PANEL_H,
+    OPT_SLIDER_X, OPT_SLIDER_W, OPT_SLIDER_H,
+    OPT_Y_FS, OPT_Y_MASTER, OPT_Y_MUSIC, OPT_Y_SFX, OPT_Y_CTRL, OPT_Y_BACK,
+    slider_hit_test, slider_value_from_mouse,
 )
 
 
@@ -19,7 +25,6 @@ class Game:
         self.save_data = load_save()
         self.settings = self.save_data["settings"]
 
-        # Superfície interna SEMPRE 500x700. O Display final escala ela.
         self.game_surface = pygame.Surface((LARGURA, ALTURA))
         self.apply_display_settings()
 
@@ -35,6 +40,10 @@ class Game:
         self.match_start_time = 0
         self.death_stats = {}
 
+        self.match_high_score = 0
+        self.record_broken = False
+        self.record_banner_time = 0
+
         self.shake_remaining = 0
         self.input_text = ""
         self.input_error = ""
@@ -42,18 +51,12 @@ class Game:
         self.dragging_slider = None
 
     def apply_display_settings(self):
-        # Múltiplos da resolução interna base (500x700)
-        res_options = [(500, 700), (750, 1050), (1000, 1400)]
-        idx = clamp(self.settings.get("resolution", 0), 0, 2)
-        target_w, target_h = res_options[idx]
-
         if self.settings.get("fullscreen", False):
             info = pygame.display.Info()
             self.window = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
         else:
-            self.window = pygame.display.set_mode((target_w, target_h))
+            self.window = pygame.display.set_mode((LARGURA, ALTURA))
 
-        # Calcula o scaling e as bordas pretas para manter a proporção (Aspect Ratio) original do jogo
         win_w, win_h = self.window.get_size()
         scale_w = win_w / LARGURA
         scale_h = win_h / ALTURA
@@ -65,11 +68,26 @@ class Game:
         self.offset_y = (win_h - self.scaled_h) // 2
 
     def get_mapped_mouse(self):
-        # Transforma o mouse cru da tela de volta na coordenada 500x700 do jogo
         raw_mx, raw_my = pygame.mouse.get_pos()
         mx = (raw_mx - self.offset_x) / self.scale
         my = (raw_my - self.offset_y) / self.scale
         return int(mx), int(my)
+
+    def _slider_y_map(self):
+        return {
+            "vol_master": OPT_Y_MASTER,
+            "vol_music": OPT_Y_MUSIC,
+            "vol_sfx": OPT_Y_SFX,
+        }
+
+    def _try_start_slider_drag(self, mouse):
+        for key, sy in self._slider_y_map().items():
+            if slider_hit_test(OPT_SLIDER_X, sy, OPT_SLIDER_W, OPT_SLIDER_H,
+                               self.settings[key], mouse[0], mouse[1]):
+                self.dragging_slider = key
+                self.settings[key] = slider_value_from_mouse(OPT_SLIDER_X, OPT_SLIDER_W, mouse[0])
+                return True
+        return False
 
     def start_game(self, player_name):
         self.current_player = player_name
@@ -79,18 +97,21 @@ class Game:
         self.state = ESTADO_JOGANDO
         self.match_start_time = pygame.time.get_ticks()
 
+        self.match_high_score = self.save_data["players"][self.current_player]["high_score"]
+        self.record_broken = False
+        self.record_banner_time = 0
+
     def run(self):
         while True:
             self.clock.tick(30)
             agora = pygame.time.get_ticks()
-            mouse = self.get_mapped_mouse()  # Mouse sempre será interpretado no contexto 500x700!
+            mouse = self.get_mapped_mouse()
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
 
-                # --- MENU PRINCIPAL ---
                 if self.state == ESTADO_MENU:
                     btn_new = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 60, 160, 45)
                     btn_load = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 5, 160, 45)
@@ -111,15 +132,10 @@ class Game:
                         elif btn_opt.collidepoint(mouse):
                             self.state = ESTADO_OPTIONS
 
-                # --- OPÇÕES ---
                 elif self.state == ESTADO_OPTIONS:
-                    btn_fs = pygame.Rect(LARGURA // 2 - 120, 120, 240, 40)
-                    btn_res = pygame.Rect(LARGURA // 2 - 120, 175, 240, 40)
-                    track_master = pygame.Rect(LARGURA // 2 - 100, 270, 200, 12)
-                    track_music = pygame.Rect(LARGURA // 2 - 100, 330, 200, 12)
-                    track_sfx = pygame.Rect(LARGURA // 2 - 100, 390, 200, 12)
-                    btn_ctrl = pygame.Rect(LARGURA // 2 - 120, 470, 240, 45)
-                    btn_back = pygame.Rect(LARGURA // 2 - 120, 530, 240, 45)
+                    btn_fs = pygame.Rect(LARGURA // 2 - 120, OPT_Y_FS, 240, 40)
+                    btn_ctrl = pygame.Rect(LARGURA // 2 - 120, OPT_Y_CTRL, 240, 45)
+                    btn_back = pygame.Rect(LARGURA // 2 - 120, OPT_Y_BACK, 240, 45)
 
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                         self.state = ESTADO_MENU
@@ -130,16 +146,8 @@ class Game:
                             self.settings["fullscreen"] = not self.settings["fullscreen"]
                             self.apply_display_settings()
                             save_game(self.save_data)
-                        elif btn_res.collidepoint(mouse):
-                            self.settings["resolution"] = (self.settings["resolution"] + 1) % 3
-                            self.apply_display_settings()
-                            save_game(self.save_data)
-                        elif track_master.collidepoint(mouse):
-                            self.dragging_slider = "vol_master"
-                        elif track_music.collidepoint(mouse):
-                            self.dragging_slider = "vol_music"
-                        elif track_sfx.collidepoint(mouse):
-                            self.dragging_slider = "vol_sfx"
+                        elif self._try_start_slider_drag(mouse):
+                            pass
                         elif btn_ctrl.collidepoint(mouse):
                             self.state = ESTADO_CONTROLS
                         elif btn_back.collidepoint(mouse):
@@ -151,16 +159,14 @@ class Game:
                             self.dragging_slider = None
                             save_game(self.save_data)
 
-                # --- CONTROL SETUP ---
                 elif self.state == ESTADO_CONTROLS:
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                         self.state = ESTADO_OPTIONS
-
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         btn_fechar = pygame.Rect(LARGURA // 2 - 75, (ALTURA - 260) // 2 + 205, 150, 35)
-                        if btn_fechar.collidepoint(mouse): self.state = ESTADO_OPTIONS
+                        if btn_fechar.collidepoint(mouse):
+                            self.state = ESTADO_OPTIONS
 
-                # --- LEADERBOARD ---
                 elif self.state == ESTADO_LEADERBOARD:
                     if event.type == pygame.MOUSEWHEEL:
                         self.scroll_y += event.y * 30
@@ -168,9 +174,9 @@ class Game:
                         self.state = ESTADO_MENU
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         btn_back = pygame.Rect(LARGURA // 2 - 80, ALTURA - 80, 160, 40)
-                        if btn_back.collidepoint(mouse): self.state = ESTADO_MENU
+                        if btn_back.collidepoint(mouse):
+                            self.state = ESTADO_MENU
 
-                # --- NOVO JOGADOR ---
                 elif self.state == ESTADO_NEW_PLAYER:
                     if event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE:
@@ -191,7 +197,6 @@ class Game:
                         elif btn_back.collidepoint(mouse):
                             self.state = ESTADO_MENU
 
-                # --- CARREGAR JOGADOR ---
                 elif self.state == ESTADO_LOAD_PLAYER:
                     if event.type == pygame.MOUSEWHEEL:
                         self.scroll_y += event.y * 30
@@ -220,20 +225,20 @@ class Game:
                                     break
                                 start_y += 60
 
-                # --- JOGANDO ---
                 elif self.state == ESTADO_JOGANDO:
                     if event.type == pygame.KEYDOWN and event.key in [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d]:
                         self.player.queue_input(event.key)
 
-                # --- GAME OVER ---
                 elif self.state == ESTADO_GAMEOVER:
-                    py = (ALTURA - 360) // 2 - 20
-                    btn_retry = pygame.Rect(LARGURA // 2 - 150, py + 360 - 70, 140, 45)
-                    btn_menu = pygame.Rect(LARGURA // 2 + 10, py + 360 - 70, 140, 45)
+                    py = (ALTURA - GAMEOVER_PANEL_H) // 2 - 20
+                    btn_retry = pygame.Rect(LARGURA // 2 - 150, py + GAMEOVER_PANEL_H - 70, 140, 45)
+                    btn_menu = pygame.Rect(LARGURA // 2 + 10, py + GAMEOVER_PANEL_H - 70, 140, 45)
 
                     if event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_r: self.start_game(self.current_player)
-                        if event.key == pygame.K_m: self.state = ESTADO_MENU
+                        if event.key == pygame.K_r:
+                            self.start_game(self.current_player)
+                        if event.key == pygame.K_m:
+                            self.state = ESTADO_MENU
 
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         if btn_retry.collidepoint(mouse):
@@ -241,13 +246,11 @@ class Game:
                         elif btn_menu.collidepoint(mouse):
                             self.state = ESTADO_MENU
 
-            # --- PROCESSAMENTO DO ARRASTO DE SLIDER (Independente de Event Loop) ---
-            if pygame.mouse.get_pressed()[0] and self.dragging_slider:
-                x_base, w_base = LARGURA // 2 - 100, 200
-                val = (mouse[0] - x_base) / w_base * 100
-                self.settings[self.dragging_slider] = int(clamp(val, 0, 100))
+            if self.dragging_slider and pygame.mouse.get_pressed()[0]:
+                self.settings[self.dragging_slider] = slider_value_from_mouse(
+                    OPT_SLIDER_X, OPT_SLIDER_W, mouse[0]
+                )
 
-            # === FASE DE RENDERIZAÇÃO NA SUPERFÍCIE INTERNA ===
             self.game_surface.fill((0, 0, 0))
 
             if self.state == ESTADO_MENU:
@@ -291,6 +294,19 @@ class Game:
             elif self.state == ESTADO_JOGANDO:
                 self.player.update(agora)
                 self.world.update(self.player, self.player.score, agora)
+
+                if not self.record_broken and self.player.score > self.match_high_score and self.match_high_score > 0:
+                    self.record_broken = True
+                    self.record_banner_time = agora
+                    for _ in range(40):
+                        vx = random.uniform(-5, 5)
+                        vy = random.uniform(-5, 5)
+                        px = 60
+                        py = 50 + self.world.camera_y
+                        self.world.particles.append(
+                            Particle(px, py, vx, vy, (255, 215, 0), random.randint(600, 1200), random.randint(3, 6))
+                        )
+
                 self.world.draw(self.game_surface, self.player.score, agora)
 
                 hl = pygame.Surface((TAMANHO_TILE, TAMANHO_TILE), pygame.SRCALPHA)
@@ -300,29 +316,48 @@ class Game:
                 self.player.draw(self.game_surface, self.world.camera_y, agora)
                 draw_danger_zone(self.game_surface, self.world.camera_y, self.player.wy)
 
-                high = self.save_data["players"][self.current_player]["high_score"]
-                draw_hud(self.game_surface, self.current_player, self.player.score, high)
+                draw_hud(self.game_surface, self.current_player, self.player.score, self.match_high_score)
                 draw_powerups_hud(self.game_surface, self.player, agora)
 
-                # --- LÓGICA DE MORTE COM REPASSE DA CAUSA ---
+                if self.record_broken and (agora - self.record_banner_time) < 2500:
+                    t = agora - self.record_banner_time
+                    pulse = 1.0 + 0.05 * math.sin(t / 100.0)
+
+                    if t < 500:
+                        frac = t / 500.0
+                        y = -50 + 130 * (1 - (1 - frac) ** 2)
+                    elif t < 2000:
+                        y = 80
+                    else:
+                        frac = (t - 2000) / 500.0
+                        y = 80 - 130 * (frac ** 2)
+
+                    texto = "NOVO RECORDE!"
+                    surf_main = assets.fonts['botao_grande'].render(texto, True, (255, 215, 0))
+                    surf_shadow = assets.fonts['botao_grande'].render(texto, True, (0, 0, 0))
+
+                    new_w = int(surf_main.get_width() * pulse)
+                    new_h = int(surf_main.get_height() * pulse)
+
+                    surf_main = pygame.transform.scale(surf_main, (new_w, new_h))
+                    surf_shadow = pygame.transform.scale(surf_shadow, (new_w, new_h))
+
+                    rect = surf_main.get_rect(center=(LARGURA // 2, int(y)))
+                    self.game_surface.blit(surf_shadow, (rect.x + 3, rect.y + 3))
+                    self.game_surface.blit(surf_main, rect)
+
                 is_dead, cause = self.world.check_death(self.player, agora)
                 if is_dead:
-                    new_record = self.player.score > high
+                    new_record = self.player.score > self.match_high_score
                     if new_record:
                         self.save_data["players"][self.current_player]["high_score"] = self.player.score
                         save_game(self.save_data)
-
-                    # Cálculo de Metros (1 tile avançado = 2 metros)
-                    start_line = int(PLAYER_ALVO_Y // TAMANHO_TILE)
-                    dist_tiles = start_line - self.player.linha_recorde
 
                     self.death_stats = {
                         "score": self.player.score,
                         "new_record": new_record,
                         "cause": cause,
-                        "distance": max(0, dist_tiles * 2),
-                        "biome": self.world.fixar_bioma_linha(int(self.player.wy // TAMANHO_TILE), self.player.score),
-                        "time_s": (agora - self.match_start_time) // 1000
+                        "time_s": (agora - self.match_start_time) // 1000,
                     }
 
                     self.state = ESTADO_GAMEOVER
@@ -330,9 +365,9 @@ class Game:
 
             elif self.state == ESTADO_GAMEOVER:
                 offset_x = [10, -10, 8, -8, 5, -5][self.shake_remaining - 1] if self.shake_remaining > 0 else 0
-                if self.shake_remaining > 0: self.shake_remaining -= 1
+                if self.shake_remaining > 0:
+                    self.shake_remaining -= 1
 
-                # Fundo Dinâmico baseado na causa da morte
                 cause = self.death_stats.get("cause", "")
                 bg_img = assets.images.get('fundo_fim', self.game_surface.copy())
                 if cause == "afogado" and 'gameover_afogado' in assets.images:
@@ -342,15 +377,13 @@ class Game:
 
                 self.game_surface.blit(bg_img, (offset_x, 0))
 
-                # Rects dos botões sincronizados
-                py = (ALTURA - 360) // 2 - 20
-                btn_retry = pygame.Rect(LARGURA // 2 - 150, py + 360 - 70, 140, 45)
-                btn_menu = pygame.Rect(LARGURA // 2 + 10, py + 360 - 70, 140, 45)
+                py = (ALTURA - GAMEOVER_PANEL_H) // 2 - 20
+                btn_retry = pygame.Rect(LARGURA // 2 - 150, py + GAMEOVER_PANEL_H - 70, 140, 45)
+                btn_menu = pygame.Rect(LARGURA // 2 + 10, py + GAMEOVER_PANEL_H - 70, 140, 45)
 
                 draw_game_over_screen(self.game_surface, self.death_stats, mouse, btn_retry, btn_menu)
 
-            # === FASE DE POST-PROCESSING E DISPLAY FINAL ===
-            self.window.fill((12, 15, 22))  # Cor do fundo (Bordas ao redor do Jogo / Pillarboxing)
+            self.window.fill((12, 15, 22))
             scaled_final = pygame.transform.scale(self.game_surface, (self.scaled_w, self.scaled_h))
             self.window.blit(scaled_final, (self.offset_x, self.offset_y))
 
