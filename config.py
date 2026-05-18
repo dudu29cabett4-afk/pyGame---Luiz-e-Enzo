@@ -38,3 +38,27 @@ ESTADO_LOAD_PLAYER = 4
 ESTADO_OPTIONS = 5
 ESTADO_CONTROLS = 6
 ESTADO_LEADERBOARD = 7
+
+# === CONSTANTES DE DIFICULDADE PROGRESSIVA ===
+SCORE_DIFICULDADE_MAX = 150 # Pontuação onde os obstáculos atingem velocidade/densidade máxima
+
+# Breakpoints e Pesos de Geração (Grama, Estrada, Rio)
+BREAKPOINT_FASE2 = 40
+BREAKPOINT_FASE3 = 90
+PESOS_GRID_FASE1 = [6, 2, 0] # Início: Muito mato, pouca rua, zero rios
+PESOS_GRID_FASE2 = [3, 4, 1] # Meio: Balanceado
+PESOS_GRID_FASE3 = [1, 5, 3] # Fim: Caos urbano e muita água
+
+# Velocidades (Min, Max) base -> escalam até -> (Min, Max) no teto de dificuldade
+CARRO_VEL_BASE = (3.5, 6.0)
+CARRO_VEL_TETO = (7.0, 11.0)
+
+TRONCO_VEL_BASE = (2.0, 3.5)
+TRONCO_VEL_TETO = (3.5, 6.0)
+
+# Espaçamento de Spawn em Pixels (Min, Max) base -> escalam até -> (Min, Max) no teto
+CARRO_SPAWN_BASE = (250, 450)
+CARRO_SPAWN_TETO = (120, 220)
+
+TRONCO_SPAWN_BASE = (200, 400)
+TRONCO_SPAWN_TETO = (100, 220)
