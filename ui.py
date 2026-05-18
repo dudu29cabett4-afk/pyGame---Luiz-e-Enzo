@@ -1,4 +1,5 @@
 # ui.py
+import math
 import pygame
 from config import *
 import assets
@@ -53,7 +54,7 @@ def draw_options_screen(surface, mouse_pos, settings):
     draw_button(surface, btn_back, "VOLTAR", btn_back.collidepoint(mouse_pos))
 
 
-# ... resto das funções ui.py permanecem idênticas (draw_hud, draw_danger_zone, etc) ...
+# ... Resto das funções ui.py permanecem idênticas (draw_hud, draw_danger_zone, etc) ...
 
 def draw_hud(surface, player_name, score, high_score):
     draw_text_shadow(surface, assets.fonts['botao_grande'], f"{player_name}", (0, 255, 200), (15, 10), anchor="topleft",
@@ -223,3 +224,50 @@ def draw_leaderboard_screen(surface, players_dict, mouse_pos, scroll_y):
     btn_back = pygame.Rect(LARGURA // 2 - 80, ALTURA - 80, 160, 40)
     draw_button(surface, btn_back, "VOLTAR", btn_back.collidepoint(mouse_pos))
     return btn_back, view_rect
+
+def draw_game_over_screen(surface, stats, mouse_pos, btn_retry, btn_menu):
+    pw, ph = 340, 360
+    px, py = (LARGURA - pw) // 2, (ALTURA - ph) // 2 - 20
+
+    # Fundo Translúcido
+    painel = pygame.Surface((pw, ph), pygame.SRCALPHA)
+    painel.fill((15, 18, 42, 235))
+    pygame.draw.rect(painel, (255, 200, 50), (0, 0, pw, ph), 3, border_radius=14)
+    surface.blit(painel, (px, py))
+
+    # Causa da Morte
+    causas_texto = {
+        "atropelado": "Atropelado!",
+        "afogado": "Afogado!",
+        "borda": "Ficou para trás!"
+    }
+    causa_str = causas_texto.get(stats['cause'], "Você morreu!")
+
+    draw_text_shadow(surface, assets.fonts['botao_grande'], causa_str, (255, 100, 100), (LARGURA // 2, py + 35))
+    pygame.draw.line(surface, (255, 200, 50), (px + 20, py + 60), (px + pw - 20, py + 60), 1)
+
+    # Estatísticas Detalhadas
+    infos = [
+        (f"Score Final: {stats['score']}", (255, 255, 255)),
+        (f"Distância: {stats['distance']} metros", (200, 230, 255)),
+        (f"Tempo: {stats['time_s']} segundos", (200, 255, 200)),
+        (f"Bioma: {stats['biome'].capitalize()}", (255, 220, 150))
+    ]
+
+    y_pos = py + 100
+    for texto, cor in infos:
+        draw_text_shadow(surface, assets.fonts['hud'], texto, cor, (LARGURA // 2, y_pos))
+        y_pos += 35
+
+    # Alerta de Novo Recorde Pulsante
+    if stats['new_record']:
+        alpha = int(128 + 127 * math.sin(pygame.time.get_ticks() / 150.0))
+        glow_color = (255, 215, 0, alpha)
+
+        surf_recorde = assets.fonts['botao_grande'].render("NOVO RECORDE! 🏆", True, glow_color[:3])
+        surf_recorde.set_alpha(alpha)
+        r_rect = surf_recorde.get_rect(center=(LARGURA // 2, y_pos + 10))
+        surface.blit(surf_recorde, r_rect)
+
+    draw_button(surface, btn_retry, "RETRY (R)", btn_retry.collidepoint(mouse_pos))
+    draw_button(surface, btn_menu, "MENU (M)", btn_menu.collidepoint(mouse_pos))

@@ -227,17 +227,20 @@ class World:
         self.fumacas_ativas[:] = [f for f in self.fumacas_ativas if not f.expirou(agora)]
 
     def check_death(self, player, agora):
-        if agora < player.graca_ate: return False
+        if agora < player.graca_ate: return False, None
 
         py_screen = player.wy - self.camera_y
-        if py_screen >= ALTURA or py_screen < -TAMANHO_TILE: return True
+        if py_screen >= ALTURA or py_screen < -TAMANHO_TILE: return True, "borda"
 
         prect = player.rect(self.camera_y)
         tipo = self.gerar_tile(int(player.wy // TAMANHO_TILE))[1]
 
         golpe_fatal = False
+        causa = None
+
         if tipo == TIPO_ESTRADA and any(c.rect(self.camera_y).colliderect(prect) for c in self.carros_ativos):
             golpe_fatal = True
+            causa = "atropelado"
             if not player.tem_escudo: self.particles.append(
                 Particle(player.wx + 24, player.wy + 24, 0, 0, (255, 100, 0), 600, 20))
         elif tipo == TIPO_RIO and not self.rio_congelado(player.score):
@@ -245,6 +248,7 @@ class World:
                              v.linha == int(player.wy // TAMANHO_TILE))
             if player.tronco_atual is None and not em_vitoria:
                 golpe_fatal = True
+                causa = "afogado"
                 if not player.tem_escudo: self.particles.append(
                     Particle(player.wx + 24, player.wy + 24, 0, 0, (150, 200, 255), 600, 20))
 
@@ -252,9 +256,10 @@ class World:
             if player.tem_escudo:
                 player.tem_escudo = False
                 player.graca_ate = agora + 1200
-                return False
-            return True
-        return False
+                return False, None
+            return True, causa
+
+        return False, None
 
     def draw(self, surface, score, agora):
         linha_ini = int(self.camera_y // TAMANHO_TILE) - 1

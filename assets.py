@@ -6,19 +6,16 @@ from config import *
 images = {}
 fonts = {}
 
-
 def criar_tile_grama(img, tamanho=TAMANHO_TILE):
     w, h = img.get_size()
     lado = min(w, h)
     quadrado = img.subsurface(pygame.Rect((w - lado) // 2, (h - lado) // 2, lado, lado)).copy()
     return pygame.transform.scale(quadrado, (tamanho, tamanho))
 
-
 def escalar_carro(img):
     orig_w, orig_h = img.get_size()
     nova_largura = int(orig_w * (TAMANHO_TILE / orig_h))
     return pygame.transform.scale(img, (nova_largura, TAMANHO_TILE))
-
 
 def _criar_pu_escudo():
     surf = pygame.Surface((36, 36), pygame.SRCALPHA)
@@ -33,7 +30,6 @@ def _criar_pu_escudo():
     pygame.draw.circle(surf, (255, 255, 180), (18, 18), 6)
     return surf
 
-
 def _criar_pu_xp2():
     surf = pygame.Surface((36, 36), pygame.SRCALPHA)
     pygame.draw.circle(surf, (255, 190, 70), (18, 18), 15)
@@ -44,7 +40,6 @@ def _criar_pu_xp2():
     surf.blit(txt, txt.get_rect(center=(18, 18)))
     return surf
 
-
 def fazer_img_crocodilo(num_slots: int) -> pygame.Surface:
     w, h = num_slots * TAMANHO_TILE, TAMANHO_TILE
     surf = pygame.Surface((w, h), pygame.SRCALPHA)
@@ -54,11 +49,9 @@ def fazer_img_crocodilo(num_slots: int) -> pygame.Surface:
     pygame.draw.ellipse(surf, (45, 115, 45), (w - 22, h // 4 - 4, 22, h // 2 + 8))
     pygame.draw.circle(surf, (220, 200, 30), (w - 10, h // 4 + 2), 5)
     pygame.draw.circle(surf, (0, 0, 0), (w - 10, h // 4 + 2), 2)
-    for i in range(w - 20, w - 2, 5): pygame.draw.polygon(surf, (240, 240, 230),
-                                                          [(i, h // 4), (i + 2, h // 4 - 5), (i + 4, h // 4)])
+    for i in range(w - 20, w - 2, 5): pygame.draw.polygon(surf, (240, 240, 230), [(i, h // 4), (i + 2, h // 4 - 5), (i + 4, h // 4)])
     pygame.draw.polygon(surf, (55, 130, 55), [(0, h // 4 + 4), (0, h // 4 + h // 2 - 4), (10, h // 2)])
     return surf
-
 
 def load_all_assets():
     base = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd()
@@ -82,6 +75,8 @@ def load_all_assets():
 
     images['fundo'] = load_img("pasta_imagens/fundoGame.png", (LARGURA, ALTURA))
     images['fundo_fim'] = load_img("pasta_imagens/gameover.png", (LARGURA, ALTURA))
+    images['gameover_afogado'] = load_img("pasta_imagens/afogado.png", (LARGURA, ALTURA))
+    images['gameover_borda'] = load_img("pasta_imagens/borda.png", (LARGURA, ALTURA))
     images['estrada'] = load_img("pasta_imagens/EstradaTeste.png", (LARGURA, TAMANHO_TILE))
 
     images['p_cima'] = load_img("pasta_imagens/costas.png", (TAMANHO_TILE, TAMANHO_TILE))
@@ -102,16 +97,13 @@ def load_all_assets():
     images['pu_escudo'] = _criar_pu_escudo()
     images['pu_xp2'] = _criar_pu_xp2()
 
-    # --- CORREÇÃO 3: Unindo as sprites do tronco ao invés de esticar ---
     t_raw = load_img("pasta_imagens/tronco.png", (TAMANHO_TILE, TAMANHO_TILE))
     images['troncos'] = {}
     for k in TRONCO_SLOTS_OPCOES:
         surf_tronco = pygame.Surface((k * TAMANHO_TILE, TAMANHO_TILE), pygame.SRCALPHA)
-        for i in range(k):
-            surf_tronco.blit(t_raw, (i * TAMANHO_TILE, 0))
+        for i in range(k): surf_tronco.blit(t_raw, (i * TAMANHO_TILE, 0))
         images['troncos'][k] = surf_tronco
 
     images['troncos_flip'] = {k: pygame.transform.flip(v, True, False) for k, v in images['troncos'].items()}
-
     images['crocodilos'] = {k: fazer_img_crocodilo(k) for k in TRONCO_SLOTS_OPCOES}
     images['crocodilos_flip'] = {k: pygame.transform.flip(v, True, False) for k, v in images['crocodilos'].items()}
