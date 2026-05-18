@@ -63,7 +63,7 @@ class PowerUp:
     def draw(self, surface, camera_y):
         if self.coletado: return
         sx = int(self.wx) + (TAMANHO_TILE - self.TAMANHO) // 2
-        sy = int(self.wy - camera_y) + (TAMANHO_TILE - self.TAMANHO) // 2
+        sy = int(self.wy - camera_y) + (TAMANHO_TILE - self.TAMANHO) // 2 - 3
         if -self.TAMANHO <= sy <= ALTURA:
             t = pygame.time.get_ticks()
             alpha = int(120 + 80 * abs((t % 800) / 400.0 - 1))
@@ -108,7 +108,7 @@ class Player:
 
         # --- SISTEMA DE TWEENING E ANIMAÇÃO ---
         self.anim_start = 0
-        self.anim_duracao = 100  # Duração da transição em milissegundos
+        self.anim_duracao = 120  # Duração da transição em milissegundos
         self.visual_offset_x = 0.0
         self.visual_offset_y = 0.0
         self.last_move_axis = 'y'  # 'x' ou 'y' para saber o eixo do squash/stretch

@@ -15,8 +15,8 @@ ARVORE_PREGEN_LINHAS = 10
 ARVORE_APARECIMENTO_MS = 500
 ARVORE_MARGEM_MANUTENCAO = (ARVORE_PREGEN_LINHAS + 4) * TAMANHO_TILE
 ARVORE_CHANCE_BASE = 0.025
-ARVORE_CHANCE_EXTRA_MAX = 0.015
-ARVORE_CHANCE_EXTRA_SCORE = 20000.0
+ARVORE_CHANCE_EXTRA_MAX = 0.025
+ARVORE_CHANCE_EXTRA_SCORE = 2000
 POWERUP_CHANCE_SPAWN = 0.05
 
 TRONCO_SLOTS_OPCOES = [2, 3]
@@ -39,15 +39,14 @@ ESTADO_OPTIONS = 5
 ESTADO_CONTROLS = 6
 ESTADO_LEADERBOARD = 7
 
-# === CONSTANTES DE DIFICULDADE PROGRESSIVA ===
-SCORE_DIFICULDADE_MAX = 150 # Pontuação onde os obstáculos atingem velocidade/densidade máxima
+SCORE_DIFICULDADE_MAX = 200 # Pontuação onde os obstáculos atingem velocidade/densidade máxima
 
 # Breakpoints e Pesos de Geração (Grama, Estrada, Rio)
-BREAKPOINT_FASE2 = 40
-BREAKPOINT_FASE3 = 90
-PESOS_GRID_FASE1 = [6, 2, 0] # Início: Muito mato, pouca rua, zero rios
-PESOS_GRID_FASE2 = [3, 4, 1] # Meio: Balanceado
-PESOS_GRID_FASE3 = [1, 5, 3] # Fim: Caos urbano e muita água
+BREAKPOINT_FASE2 = 100
+BREAKPOINT_FASE3 = 200
+PESOS_GRID_FASE1 = [70, 20, 10] # Início: Muito mato, pouca rua, zero rios
+PESOS_GRID_FASE2 = [45, 35, 20] # Meio: Balanceado
+PESOS_GRID_FASE3 = [30, 45, 25] # Fim: Caos urbano e muita água
 
 # Velocidades (Min, Max) base -> escalam até -> (Min, Max) no teto de dificuldade
 CARRO_VEL_BASE = (3.5, 6.0)
@@ -62,3 +61,5 @@ CARRO_SPAWN_TETO = (120, 220)
 
 TRONCO_SPAWN_BASE = (200, 400)
 TRONCO_SPAWN_TETO = (100, 220)
+
+BIOMA_POPUP_DURACAO = 1200

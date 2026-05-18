@@ -318,6 +318,7 @@ class Game:
 
                 draw_hud(self.game_surface, self.current_player, self.player.score, self.match_high_score)
                 draw_powerups_hud(self.game_surface, self.player, agora)
+                self.world.draw_biome_transitions(self.game_surface, agora)
 
                 if self.record_broken and (agora - self.record_banner_time) < 2500:
                     t = agora - self.record_banner_time
