@@ -173,6 +173,19 @@ class Player:
                     som = assets.sons.get("passo_grama")
                     if som:
                         som.play()
+                elif tipo == TIPO_ESTRADA:
+                    som = assets.sons.get("passo_asfalto")
+                    if som:
+                        som.play()
+                elif bioma == "areia" and tipo == TIPO_GRAMA:
+                    som = assets.sons.get("passo_areia")
+                    if som:
+                        som.play()
+                elif bioma == "gelo" and tipo == TIPO_GRAMA:
+                    som = assets.sons.get("passo_neve")
+                    if som:
+                        som.play()
+
 
         # Restrição de margens
         self.wx = clamp(self.wx, 0.0, float(LARGURA - TAMANHO_TILE))
@@ -230,12 +243,21 @@ class Player:
 
                 if self.tronco_atual.x > self.wx + 20 or self.tronco_atual.x + self.tronco_atual.largura < self.wx + 20:
                     self.tronco_atual = None
-            else:
-                for t in [tr for tr in self.world.troncos_ativos if tr.linha == player_linha]:
-                    if t.x <= self.wx < t.x + t.largura:
-                        self.tronco_atual, self.slot_atual = t, t.slot_do_x(self.wx)
-                        self.wx = t.slot_x_mundo(self.slot_atual)
-                        break
+
+            for t in [tr for tr in self.world.troncos_ativos if tr.linha == player_linha]:
+                if t.x <= self.wx < t.x + t.largura:
+                    if self.tronco_atual != t:
+                        if t.tipo == "crocodilo":
+                            som = assets.sons.get("passo_jacare")
+                        else:
+                            som = assets.sons.get("passo_madeira")
+
+                        if som:
+                            som.play()
+
+                    self.tronco_atual, self.slot_atual = t, t.slot_do_x(self.wx)
+                    self.wx = t.slot_x_mundo(self.slot_atual)
+                    break
         else:
             self.tronco_atual = None
 
@@ -322,6 +344,7 @@ class Tronco:
         self.linha, self.x, self.velocidade, self.direcao, self.num_slots = linha, float(
             x), velocidade, direcao, num_slots
         self.largura = num_slots * TAMANHO_TILE
+        self.tipo = tipo
         banco = assets.images['troncos'] if tipo == "tronco" else assets.images['crocodilos']
         banco_flip = assets.images['troncos_flip'] if tipo == "tronco" else assets.images['crocodilos_flip']
         self.img = banco[num_slots] if direcao == 1 else banco_flip[num_slots]

@@ -95,6 +95,11 @@ def load_all_assets():
     images['grama'] = criar_tile_grama(load_img("pasta_imagens/Grama.png"))
 
     sons["passo_grama"] = load_sound("pasta_sons/passos_grama.mp3")
+    sons["passo_asfalto"] = load_sound("pasta_sons/passos_asfalto.mp3")
+    sons["passo_areia"] = load_sound("pasta_sons/passos_areia.mp3")
+    sons["passo_neve"] = load_sound("pasta_sons/passos_neve.mp3")
+    sons["passo_madeira"] = load_sound("pasta_sons/passos_madeira.mp3")
+    sons["passo_jacare"] = load_sound("pasta_sons/passos_jacare.mp3")
 
     cr_raw = [
         load_img("pasta_imagens/amarelo.png"), load_img("pasta_imagens/rosa.png"),
