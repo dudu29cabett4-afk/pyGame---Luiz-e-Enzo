@@ -256,6 +256,9 @@ GAMEOVER_PANEL_H = 300
 
 
 def draw_game_over_screen(surface, stats, mouse_pos, btn_retry, btn_menu):
+    # Fundo customizado de atropelamento
+    if stats['cause'] == "atropelado":
+        surface.blit(assets.images["bg_atropelo"], (0, 0))
     pw, ph = 340, GAMEOVER_PANEL_H
     px, py = (LARGURA - pw) // 2, (ALTURA - ph) // 2 - 20
 
