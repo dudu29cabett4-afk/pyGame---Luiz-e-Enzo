@@ -162,6 +162,18 @@ class Player:
                 self.wx, self.wy = novo_wx, novo_wy
                 self.tronco_atual = None
 
+                self.wx, self.wy = novo_wx, novo_wy
+
+                nova_linha = int(self.wy // TAMANHO_TILE)
+                tipo = self.world.gerar_tile(nova_linha, self.score)[1]
+                nova_linha = int(self.wy // TAMANHO_TILE)
+                bioma = self.world.fixar_bioma_linha(nova_linha, self.score)
+
+                if tipo == TIPO_GRAMA and bioma == "grama":
+                    som = assets.sons.get("passo_grama")
+                    if som:
+                        som.play()
+
         # Restrição de margens
         self.wx = clamp(self.wx, 0.0, float(LARGURA - TAMANHO_TILE))
 

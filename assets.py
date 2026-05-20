@@ -4,6 +4,7 @@ import pygame
 from config import *
 
 images = {}
+sons = {}
 fonts = {}
 
 
@@ -70,6 +71,15 @@ def load_all_assets():
             surf = pygame.Surface(scale if scale else (TAMANHO_TILE, TAMANHO_TILE))
             surf.fill((255, 0, 255))
             return surf
+    def load_sound(path, volume=0.5):
+        try:
+            s = pygame.mixer.Sound(os.path.join(base, path))
+            s.set_volume(volume)
+            return s
+        except Exception as e:
+            return None
+
+    
 
     images['fundo'] = load_img("pasta_imagens/fundoGame.png", (LARGURA, ALTURA))
     images['fundo_fim'] = load_img("pasta_imagens/gameover.png", (LARGURA, ALTURA))
@@ -83,6 +93,8 @@ def load_all_assets():
     images['p_dir'] = load_img("pasta_imagens/direita.png", (TAMANHO_TILE, TAMANHO_TILE))
 
     images['grama'] = criar_tile_grama(load_img("pasta_imagens/Grama.png"))
+
+    sons["passo_grama"] = load_sound("pasta_sons/passos_grama.mp3")
 
     cr_raw = [
         load_img("pasta_imagens/amarelo.png"), load_img("pasta_imagens/rosa.png"),

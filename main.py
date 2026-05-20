@@ -22,6 +22,10 @@ from ui import (
 class Game:
     def __init__(self):
         pygame.init()
+        try:
+            pygame.mixer.init()
+        except pygame.error:
+            pass
         self.save_data = load_save()
         self.settings = self.save_data["settings"]
 
