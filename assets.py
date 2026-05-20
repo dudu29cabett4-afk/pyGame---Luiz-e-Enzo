@@ -124,3 +124,14 @@ def load_all_assets():
         2: jacare_flip,
         3: jacare_flip
     }
+
+    bg_atropelo = pygame.image.load(
+    os.path.join(base, "pasta_imagens/morte_carro.png")
+    ).convert()
+
+    bg_atropelo = pygame.transform.scale(
+        bg_atropelo,
+        (LARGURA, ALTURA)
+    )
+
+    images["bg_atropelo"] = bg_atropelo
