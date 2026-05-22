@@ -71,6 +71,11 @@ class Game:
         self.offset_x = (win_w - self.scaled_w) // 2
         self.offset_y = (win_h - self.scaled_h) // 2
 
+        self.bg_fullscreen = pygame.transform.scale(
+            assets.images['fundo_fullscreen'],
+            self.window.get_size()
+        )
+
     def get_mapped_mouse(self):
         raw_mx, raw_my = pygame.mouse.get_pos()
         mx = (raw_mx - self.offset_x) / self.scale
@@ -388,8 +393,13 @@ class Game:
 
                 draw_game_over_screen(self.game_surface, self.death_stats, mouse, btn_retry, btn_menu)
 
-            self.window.fill((12, 15, 22))
-            scaled_final = pygame.transform.scale(self.game_surface, (self.scaled_w, self.scaled_h))
+            scaled_final = pygame.transform.scale(
+                self.game_surface,
+                (self.scaled_w, self.scaled_h)
+            )
+
+            self.window.blit(self.bg_fullscreen, (0, 0))
+
             self.window.blit(scaled_final, (self.offset_x, self.offset_y))
 
             pygame.display.flip()
