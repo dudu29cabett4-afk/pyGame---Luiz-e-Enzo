@@ -153,4 +153,4 @@ def load_all_assets():
 
     images["bg_atropelo"] = bg_atropelo
 
-    images['fundo_fullscreen'] = load_img("pasta_imagens/fundo full screen.png")
+    images['fundo_fullscreen'] = load_img("pasta_imagens/imagemfundo2.png")
