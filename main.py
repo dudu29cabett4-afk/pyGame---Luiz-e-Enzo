@@ -31,10 +31,18 @@ class Game:
 
         self.game_surface = pygame.Surface((LARGURA, ALTURA))
         self.apply_display_settings()
+        def update_fullscreen_background(self):
+            self.bg_fullscreen = pygame.transform.scale(
+                assets.images['fundo_fullscreen'],
+                self.window.get_size()
+            )
 
         pygame.display.set_caption("Cruze a Quatá!")
         self.clock = pygame.time.Clock()
+
         assets.load_all_assets()
+
+        self.update_fullscreen_background()
 
         self.state = ESTADO_MENU
         self.world = None
@@ -71,11 +79,11 @@ class Game:
         self.offset_x = (win_w - self.scaled_w) // 2
         self.offset_y = (win_h - self.scaled_h) // 2
 
+    def update_fullscreen_background(self):
         self.bg_fullscreen = pygame.transform.scale(
             assets.images['fundo_fullscreen'],
             self.window.get_size()
         )
-
     def get_mapped_mouse(self):
         raw_mx, raw_my = pygame.mouse.get_pos()
         mx = (raw_mx - self.offset_x) / self.scale
@@ -153,7 +161,10 @@ class Game:
                     elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         if btn_fs.collidepoint(mouse):
                             self.settings["fullscreen"] = not self.settings["fullscreen"]
+
                             self.apply_display_settings()
+                            self.update_fullscreen_background()
+
                             save_game(self.save_data)
                         elif self._try_start_slider_drag(mouse):
                             pass
