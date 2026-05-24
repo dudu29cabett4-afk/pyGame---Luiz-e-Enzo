@@ -15,8 +15,8 @@ class Particle:
         self.x += self.vx;
         self.y += self.vy
 
-    def draw(self, surface, camera_y, now):
-        age = now - self.born
+    def draw(self, surface, camera_y, agora):
+        age = agora - self.born
         if age > self.duration: return False
         frac = 1 - (age / self.duration)
         alpha = int(255 * frac)
@@ -75,19 +75,21 @@ class PowerUp:
             surface.blit(icon, (sx, sy))
 
 
-class VitoriaRegia:
-    def __init__(self, linha, wx):
-        self.linha, self.wx, self.wy = linha, float(wx), float(linha * TAMANHO_TILE)
+class Lilypad:
+    def __init__(self, linha, wx, img):
+        self.linha = linha
+        self.wx = float(wx)
+        self.wy = float(linha * TAMANHO_TILE)
+        self.img = img
 
-    def rect_mundo(self): return pygame.Rect(int(self.wx) + 4, int(self.wy) + 4, TAMANHO_TILE - 8, TAMANHO_TILE - 8)
+    def rect_mundo(self):
+        return pygame.Rect(int(self.wx) + 4, int(self.wy) + 4, TAMANHO_TILE - 8, TAMANHO_TILE - 8)
 
     def draw(self, surface, camera_y):
         sy = int(self.wy - camera_y)
         if -TAMANHO_TILE <= sy <= ALTURA:
-            sx = int(self.wx)
-            pygame.draw.rect(surface, (60, 180, 70), (sx + 4, sy + 4, 40, 40), border_radius=20)
-            pygame.draw.rect(surface, (25, 110, 35), (sx + 4, sy + 4, 40, 40), 2, border_radius=20)
-            pygame.draw.polygon(surface, (80, 170, 230), [(sx + 24, sy + 4), (sx + 16, sy + 18), (sx + 32, sy + 18)])
+            if self.img:
+                surface.blit(self.img, (int(self.wx), sy))
 
 
 class Player:
@@ -106,12 +108,11 @@ class Player:
         self.tronco_atual = None
         self.slot_atual = 0
 
-        # --- SISTEMA DE TWEENING E ANIMAÇÃO ---
         self.anim_start = 0
-        self.anim_duracao = 120  # Duração da transição em milissegundos
+        self.anim_duracao = 120
         self.visual_offset_x = 0.0
         self.visual_offset_y = 0.0
-        self.last_move_axis = 'y'  # 'x' ou 'y' para saber o eixo do squash/stretch
+        self.last_move_axis = 'y'
 
     def rect(self, camera_y):
         return pygame.Rect(int(self.wx) + 8, int(self.wy - camera_y) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
@@ -127,7 +128,6 @@ class Player:
         if not self.input_buffer: return
         key = self.input_buffer.pop(0)
 
-        # Guarda a posição lógica ANTES de mover para gerar o delta de animação
         old_wx, old_wy = self.wx, self.wy
         novo_wx, novo_wy = self.wx, self.wy
 
@@ -148,7 +148,6 @@ class Player:
 
         test_rect = pygame.Rect(int(novo_wx) + 8, int(novo_wy) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
 
-        # Se NÃO for colidir, realiza a mudança na lógica
         if not self.world.colide_com_arvore(test_rect):
             if self.tronco_atual and key in [pygame.K_a, pygame.K_d]:
                 novo_slot = self.slot_atual + (1 if key == pygame.K_d else -1)
@@ -161,50 +160,33 @@ class Player:
             else:
                 self.wx, self.wy = novo_wx, novo_wy
                 self.tronco_atual = None
-
                 self.wx, self.wy = novo_wx, novo_wy
 
                 nova_linha = int(self.wy // TAMANHO_TILE)
                 tipo = self.world.gerar_tile(nova_linha, self.score)[1]
-                nova_linha = int(self.wy // TAMANHO_TILE)
                 bioma = self.world.fixar_bioma_linha(nova_linha, self.score)
 
-                if tipo == TIPO_GRAMA and bioma == "grama":
+                if tipo == TIPO_GRAMA and bioma == "floresta":
                     som = assets.sons.get("passo_grama")
-                    if som:
-                        som.play()
+                    if som: som.play()
                 elif tipo == TIPO_ESTRADA:
                     som = assets.sons.get("passo_asfalto")
-                    if som:
-                        som.play()
-                elif bioma == "areia" and tipo == TIPO_GRAMA:
+                    if som: som.play()
+                elif bioma == "deserto" and tipo == TIPO_GRAMA:
                     som = assets.sons.get("passo_areia")
-                    if som:
-                        som.play()
-                elif bioma == "gelo" and tipo == TIPO_GRAMA:
-                    som = assets.sons.get("passo_neve")
-                    if som:
-                        som.play()
+                    if som: som.play()
 
-
-        # Restrição de margens
         self.wx = clamp(self.wx, 0.0, float(LARGURA - TAMANHO_TILE))
 
-        # --- GERAÇÃO DO OFFSET DE TWEENING ---
         delta_x = old_wx - self.wx
         delta_y = old_wy - self.wy
 
-        # Se houve alguma mudança real de posição (não trombou na parede nem em árvore)
         if delta_x != 0 or delta_y != 0:
-            # Salva o eixo para definir qual lado achata na animação
             self.last_move_axis = 'x' if abs(delta_x) > abs(delta_y) else 'y'
-
-            # Se já estava em transição (inputs enfileirados muito rápidos),
-            # não cancelamos, apenas acumulamos o offset restante do antigo com o novo!
             tempo_passado = agora - self.anim_start
             if tempo_passado < self.anim_duracao:
                 t = tempo_passado / self.anim_duracao
-                frac = (1 - t) ** 2  # Usamos quadratica (Ease-Out)
+                frac = (1 - t) ** 2
                 self.visual_offset_x = self.visual_offset_x * frac + delta_x
                 self.visual_offset_y = self.visual_offset_y * frac + delta_y
             else:
@@ -213,7 +195,6 @@ class Player:
 
             self.anim_start = agora
 
-            # Atualização de pontuação acontece junto da aprovação do movimento lógico
             nova_linha = int(self.wy // TAMANHO_TILE)
             if nova_linha < self.linha_recorde:
                 self.linha_recorde = nova_linha
@@ -251,9 +232,7 @@ class Player:
                             som = assets.sons.get("passo_jacare")
                         else:
                             som = assets.sons.get("passo_madeira")
-
-                        if som:
-                            som.play()
+                        if som: som.play()
 
                     self.tronco_atual, self.slot_atual = t, t.slot_do_x(self.wx)
                     self.wx = t.slot_x_mundo(self.slot_atual)
@@ -262,24 +241,19 @@ class Player:
             self.tronco_atual = None
 
     def draw(self, surface, camera_y, agora):
-        # --- CÁLCULO DA POSIÇÃO VISUAL (TWEENING + SQUASH) ---
         cur_offset_x = 0
         cur_offset_y = 0
         img_to_draw = self.imagem
-        dx, dy = 0, 0  # Compensação para centralizar a imagem após distorção
+        dx, dy = 0, 0
 
         tempo_anim = agora - self.anim_start
         if tempo_anim < self.anim_duracao:
-            # t = Progresso da animação (0 a 1)
             t = tempo_anim / self.anim_duracao
-            frac = (1 - t) ** 2  # Efeito Ease-Out (Rápido no começo, suave no fim)
-
+            frac = (1 - t) ** 2
             cur_offset_x = self.visual_offset_x * frac
             cur_offset_y = self.visual_offset_y * frac
 
-            # Distorção Squash and Stretch (curva parabólica que atinge pico de 25% no meio da animação t=0.5)
             deform = 4 * t * (1 - t) * 0.25
-
             if self.last_move_axis == 'x':
                 scale_x = int(TAMANHO_TILE * (1 + deform))
                 scale_y = int(TAMANHO_TILE * (1 - deform))
@@ -294,15 +268,11 @@ class Player:
             self.visual_offset_x = 0
             self.visual_offset_y = 0
 
-        # Aplica o offset puramente estético na lógica real
         px = int(self.wx + cur_offset_x) + dx
         py = int(self.wy + cur_offset_y - camera_y) + dy
-
-        # Centro do personagem para desenhar as auras e escudos no lugar certo
         cx = int(self.wx + cur_offset_x)
         cy = int(self.wy + cur_offset_y - camera_y)
 
-        # Desenha a barra flutuante em cima do tronco
         if self.tronco_atual:
             sy_t = int(self.tronco_atual.linha * TAMANHO_TILE - camera_y)
             for s in range(self.tronco_atual.num_slots):
@@ -312,7 +282,6 @@ class Player:
                 indicador.fill(cor)
                 surface.blit(indicador, (sx_slot + 4, sy_t + TAMANHO_TILE - 6))
 
-        # Desenha Escudo / Graça de morte / Personagem Normal
         if self.tem_escudo:
             aura = pygame.Surface((TAMANHO_TILE + 16, TAMANHO_TILE + 16), pygame.SRCALPHA)
             pulso = int(120 + 80 * abs((agora % 600) / 300.0 - 1))
@@ -341,153 +310,52 @@ class Carro:
 
 class Tronco:
     def __init__(self, linha, x, velocidade, direcao, num_slots, tipo="tronco"):
-        self.linha, self.x, self.velocidade, self.direcao, self.num_slots = linha, float(
-            x), velocidade, direcao, num_slots
+        self.linha = linha
+        self.x = float(x)
+        self.velocidade = velocidade
+        self.direcao = direcao
+        self.num_slots = num_slots
         self.largura = num_slots * TAMANHO_TILE
         self.tipo = tipo
-        banco = assets.images['troncos'] if tipo == "tronco" else assets.images['crocodilos']
-        banco_flip = assets.images['troncos_flip'] if tipo == "tronco" else assets.images['crocodilos_flip']
-        self.img = banco[num_slots] if direcao == 1 else banco_flip[num_slots]
 
-    def update(self): self.x += self.velocidade * self.direcao
+        if tipo == "crocodilo":
+            base_img = assets.images['rios']['jacare'] if direcao == 1 else assets.images['rios']['jacare_flip']
+        else:
+            base_img = assets.images['rios']['tronco']
 
-    def slot_x_mundo(self, slot): return self.x + slot * TAMANHO_TILE
+        self.img = pygame.transform.scale(base_img, (self.largura, TAMANHO_TILE))
 
-    def slot_do_x(self, wx): return max(0, min(self.num_slots - 1, round((wx - self.x) / TAMANHO_TILE)))
+    def update(self):
+        self.x += self.velocidade * self.direcao
 
+    def slot_x_mundo(self, slot):
+        return self.x + slot * TAMANHO_TILE
 
-def _px_arvore(surf, gx, gy, color, scale=3, dy=0):
-    py = (gy + dy) * scale
-    if 0 <= py < TAMANHO_TILE - scale + 1:
-        surf.fill(color, (gx * scale, py, scale, scale))
-
-
-def _desenhar_arvore_grama(surf):
-    """Carvalho em pixel art — copa contida no tile, sem contorno no ápice."""
-    S = 3
-    DY = 2
-    SHADOW = (34, 58, 30)
-    TRUNK_D = (92, 58, 34)
-    TRUNK_M = (122, 78, 46)
-    TRUNK_L = (158, 104, 62)
-    LEAF_D = (44, 98, 52)
-    LEAF_M = (68, 138, 72)
-    LEAF_L = (98, 176, 92)
-    LEAF_HI = (138, 206, 118)
-    OUTLINE = (28, 48, 28)
-
-    for gx in range(5, 11):
-        _px_arvore(surf, gx, 13, SHADOW, S, DY)
-
-    for gy in range(9, 13):
-        for gx in range(7, 9):
-            _px_arvore(surf, gx, gy, TRUNK_D if gx == 7 else TRUNK_M, S, DY)
-    _px_arvore(surf, 7, 8, TRUNK_L, S, DY)
-    _px_arvore(surf, 8, 10, TRUNK_L, S, DY)
-
-    canopy = [
-        (5, 5, LEAF_D), (6, 5, LEAF_D), (10, 5, LEAF_D), (11, 5, LEAF_D),
-        (4, 6, LEAF_D), (5, 6, LEAF_M), (6, 6, LEAF_M), (7, 6, LEAF_L), (8, 6, LEAF_L),
-        (9, 6, LEAF_M), (10, 6, LEAF_M), (11, 6, LEAF_D), (12, 6, LEAF_D),
-        (4, 7, LEAF_M), (5, 7, LEAF_L), (6, 7, LEAF_HI), (7, 7, LEAF_HI), (8, 7, LEAF_HI),
-        (9, 7, LEAF_L), (10, 7, LEAF_M), (11, 7, LEAF_D),
-        (5, 8, LEAF_M), (6, 8, LEAF_L), (7, 8, LEAF_M), (8, 8, LEAF_L), (9, 8, LEAF_M), (10, 8, LEAF_D),
-        (6, 4, LEAF_HI), (7, 4, LEAF_HI), (8, 4, LEAF_HI),
-    ]
-    for gx, gy, col in canopy:
-        _px_arvore(surf, gx, gy, col, S, DY)
-
-    for gx, gy in [(4, 6), (11, 6), (5, 5), (10, 5), (3, 7), (12, 7)]:
-        _px_arvore(surf, gx, gy, OUTLINE, S, DY)
+    def slot_do_x(self, wx):
+        return max(0, min(self.num_slots - 1, round((wx - self.x) / TAMANHO_TILE)))
 
 
-def _desenhar_arvore_cacto(surf):
-    """Saguaro em pixel art — braços e corpo dentro do tile."""
-    S = 3
-    DY = 2
-    DARK = (52, 108, 58)
-    MID = (74, 142, 78)
-    LIGHT = (108, 178, 102)
-    HI = (142, 208, 128)
-    OUTLINE = (34, 72, 42)
-    SPIKE = (198, 188, 120)
-    SAND = (194, 162, 108)
-
-    for gx in range(5, 11):
-        _px_arvore(surf, gx, 13, SAND, S, DY)
-
-    for gy in range(5, 12):
-        for gx in range(7, 9):
-            _px_arvore(surf, gx, gy, MID if gy < 10 else DARK, S, DY)
-    _px_arvore(surf, 7, 4, LIGHT, S, DY)
-    _px_arvore(surf, 8, 4, HI, S, DY)
-
-    for gx, gy in [(4, 8), (4, 7), (5, 7), (5, 6), (6, 6)]:
-        _px_arvore(surf, gx, gy, LIGHT if gy <= 7 else MID, S, DY)
-    for gx, gy in [(10, 9), (10, 8), (9, 8), (9, 7), (8, 7)]:
-        _px_arvore(surf, gx, gy, LIGHT if gy <= 8 else MID, S, DY)
-
-    for gx, gy in [(6, 7), (9, 8), (7, 3), (8, 10)]:
-        _px_arvore(surf, gx, gy, HI, S, DY)
-
-    for gx, gy in [(3, 8), (11, 9), (7, 12), (8, 12), (6, 6), (9, 7)]:
-        _px_arvore(surf, gx, gy, OUTLINE, S, DY)
-
-    for gx, gy in [(5, 6), (6, 5), (9, 7), (8, 6), (7, 8), (8, 8)]:
-        _px_arvore(surf, gx, gy, SPIKE, S, DY)
-
-
-def _desenhar_arvore_gelo(surf):
-    """Pinheiro nevado em pixel art."""
-    S = 3
-    DY = 2
-    SNOW = (228, 238, 248)
-    SNOW_SH = (188, 202, 220)
-    PINE_D = (38, 82, 58)
-    PINE_M = (54, 112, 74)
-    PINE_L = (78, 148, 98)
-    TRUNK_D = (82, 54, 36)
-    TRUNK_L = (118, 78, 50)
-    OUTLINE = (24, 48, 36)
-
-    for gx, gy in [(7, 11), (8, 11), (7, 12), (8, 12)]:
-        _px_arvore(surf, gx, gy, TRUNK_D, S, DY)
-    _px_arvore(surf, 7, 10, TRUNK_L, S, DY)
-
-    layers = [
-        [(7, 4, PINE_L), (6, 5, PINE_M), (7, 5, PINE_L), (8, 5, PINE_L), (9, 5, PINE_M), (7, 5, SNOW)],
-        [(5, 6, PINE_D), (6, 6, PINE_M), (7, 6, PINE_L), (8, 6, PINE_L), (9, 6, PINE_M), (10, 6, PINE_D),
-         (6, 6, SNOW), (8, 6, SNOW)],
-        [(5, 8, PINE_M), (6, 8, PINE_L), (7, 8, PINE_L), (8, 8, PINE_L), (9, 8, PINE_M), (7, 8, SNOW_SH)],
-    ]
-    for layer in layers:
-        for gx, gy, col in layer:
-            _px_arvore(surf, gx, gy, col, S, DY)
-
-    for gx, gy in [(5, 6), (10, 6), (4, 8), (11, 8)]:
-        _px_arvore(surf, gx, gy, OUTLINE, S, DY)
-
-
-class Arvore:
-    def __init__(self, linha, wx, nascida_em=0):
-        self.linha, self.wx, self.wy, self.nascida_em = linha, float(wx), float(linha * TAMANHO_TILE), nascida_em
+class Obstaculo:
+    def __init__(self, linha, wx, img, nascida_em=0):
+        self.linha = linha
+        self.wx = float(wx)
+        self.wy = float(linha * TAMANHO_TILE)
+        self.img = img
+        self.nascida_em = nascida_em
 
     def world_rect(self):
         return pygame.Rect(int(self.wx) + 8, int(self.wy) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
 
-    def draw(self, surface, camera_y, agora, bioma):
+    def draw(self, surface, camera_y, agora, bioma=None):
         sy = int(self.wy - camera_y)
         if -TAMANHO_TILE <= sy <= ALTURA:
-            surf = pygame.Surface((TAMANHO_TILE, TAMANHO_TILE), pygame.SRCALPHA)
             tempo = max(0, agora - self.nascida_em)
             alpha = int(255 * (tempo / ARVORE_APARECIMENTO_MS)) if tempo < ARVORE_APARECIMENTO_MS else 255
 
-            if bioma == "areia":
-                _desenhar_arvore_cacto(surf)
-            elif bioma == "gelo":
-                _desenhar_arvore_gelo(surf)
-            else:
-                _desenhar_arvore_grama(surf)
-
-            surf.set_alpha(alpha)
-            surface.blit(surf, (int(self.wx), sy))
+            if self.img:
+                if alpha < 255:
+                    surf = self.img.copy()
+                    surf.set_alpha(alpha)
+                    surface.blit(surf, (int(self.wx), sy))
+                else:
+                    surface.blit(self.img, (int(self.wx), sy))

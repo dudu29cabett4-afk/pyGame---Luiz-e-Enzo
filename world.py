@@ -111,7 +111,6 @@ class World:
         return self.tile_map[linha]
 
     def spawn_entities(self, linha_ini, linha_fim, score, agora):
-        # A Etapa 3 atualizará essa parte. Mantido intacto para não quebrar.
         diff_base = min(score / SCORE_DIFICULDADE_MAX, 1.0)
         diff_f = diff_base * diff_base * (3.0 - 2.0 * diff_base)
 
@@ -131,7 +130,6 @@ class World:
 
             if tipo == TIPO_GRAMA and l < -SAFE_ZONE_LINHAS:
                 ocupadas = {int(a.wx // TAMANHO_TILE) for a in self.arvores_ativas if a.linha == l}
-
                 chance_arvore = ARVORE_CHANCE_BASE + min(score / ARVORE_CHANCE_EXTRA_SCORE, ARVORE_CHANCE_EXTRA_MAX)
                 max_arvores_linha = 1 + int(3 * diff_f)
                 arvores_na_linha = [a for a in self.arvores_ativas if a.linha == l]
@@ -139,13 +137,16 @@ class World:
                 if len(arvores_na_linha) < max_arvores_linha and random.random() < chance_arvore:
                     colunas_totais = LARGURA // TAMANHO_TILE
                     col_centro = colunas_totais // 2
-
                     livres = [c * TAMANHO_TILE for c in range(1, colunas_totais - 1)
                               if c not in (col_centro - 1, col_centro) and (c not in ocupadas)]
 
                     if livres:
                         wx = random.choice(livres)
-                        self.arvores_ativas.append(Arvore(l, wx, agora - 220))
+                        imgs_obs = assets.images['biomas'][bioma]['obstaculos']
+                        img_obs = random.choice(imgs_obs) if imgs_obs else None
+
+                        if img_obs:
+                            self.arvores_ativas.append(Obstaculo(l, wx, img_obs, agora - 220))
                         ocupadas.add(wx // TAMANHO_TILE)
 
                 if len([p for p in self.powerups_ativos if not p.coletado]) < MAX_POWERUPS_ATIVOS:
@@ -174,15 +175,19 @@ class World:
 
                 if not ja_existem:
                     ld['next_x'] = -100 if ld['dir'] == 1 else LARGURA
-                    img = random.choice(assets.images['carros_r'] if ld['dir'] == 1 else assets.images['carros_l'])
-                    self.carros_ativos.append(Carro(l, ld['next_x'], ld['v'], ld['dir'], img))
+                    imgs_carro = assets.images['carros_r'] if ld['dir'] == 1 else assets.images['carros_l']
+                    img = random.choice(imgs_carro) if imgs_carro else None
+                    if img:
+                        self.carros_ativos.append(Carro(l, ld['next_x'], ld['v'], ld['dir'], img))
                     ld['next_x'] += ld['dir'] * random.randint(car_sp_min, car_sp_max)
                 else:
                     ultimo = max(ja_existem, key=lambda c: c.x * ld['dir'])
                     if (ld['dir'] == 1 and ultimo.x >= ld['next_x']) or (ld['dir'] == -1 and ultimo.x <= ld['next_x']):
-                        img = random.choice(assets.images['carros_r'] if ld['dir'] == 1 else assets.images['carros_l'])
+                        imgs_carro = assets.images['carros_r'] if ld['dir'] == 1 else assets.images['carros_l']
+                        img = random.choice(imgs_carro) if imgs_carro else None
                         spawn_x = -100 if ld['dir'] == 1 else LARGURA
-                        self.carros_ativos.append(Carro(l, spawn_x, ld['v'], ld['dir'], img))
+                        if img:
+                            self.carros_ativos.append(Carro(l, spawn_x, ld['v'], ld['dir'], img))
                         ld['next_x'] += ld['dir'] * random.randint(car_sp_min, car_sp_max)
 
             elif tipo == TIPO_RIO:
@@ -205,11 +210,15 @@ class World:
                         if cols_adjacentes:
                             cols[0] = random.choice(cols_adjacentes)
 
+                        imgs_lily = assets.images.get('lilypads', [])
                         for c in set(cols):
-                            self.vitorias_ativas.append(VitoriaRegia(l, c * TAMANHO_TILE))
+                            img_lily = random.choice(imgs_lily) if imgs_lily else None
+                            if img_lily:
+                                self.vitorias_ativas.append(Lilypad(l, c * TAMANHO_TILE, img_lily))
                 else:
                     ja_existem = [t for t in self.troncos_ativos if t.linha == l]
-                    t_tipo = "crocodilo" if bioma == "areia" else "tronco"
+                    # Crocodilo aparece com 20% de chance, independente do bioma, pra dar diversidade
+                    t_tipo = "crocodilo" if random.random() < 0.2 else "tronco"
 
                     if not ja_existem:
                         slots = random.choice(TRONCO_SLOTS_OPCOES)
