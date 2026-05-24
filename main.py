@@ -31,17 +31,11 @@ class Game:
 
         self.game_surface = pygame.Surface((LARGURA, ALTURA))
         self.apply_display_settings()
-        def update_fullscreen_background(self):
-            self.bg_fullscreen = pygame.transform.scale(
-                assets.images['fundo_fullscreen'],
-                self.window.get_size()
-            )
 
         pygame.display.set_caption("Cruze a Quatá!")
         self.clock = pygame.time.Clock()
 
         assets.load_all_assets()
-
         self.update_fullscreen_background()
 
         self.state = ESTADO_MENU
@@ -62,6 +56,11 @@ class Game:
         self.scroll_y = 0
         self.dragging_slider = None
 
+        # Gerenciamento de Áudio
+        self.current_track = None
+        self.current_ambient = None
+        self.last_hover = None
+
     def apply_display_settings(self):
         if self.settings.get("fullscreen", False):
             info = pygame.display.Info()
@@ -81,9 +80,10 @@ class Game:
 
     def update_fullscreen_background(self):
         self.bg_fullscreen = pygame.transform.scale(
-            assets.images['fundo_fullscreen'],
+            assets.images['telas']['fullscreen'],
             self.window.get_size()
         )
+
     def get_mapped_mouse(self):
         raw_mx, raw_my = pygame.mouse.get_pos()
         mx = (raw_mx - self.offset_x) / self.scale
@@ -106,6 +106,45 @@ class Game:
                 return True
         return False
 
+    # ==========================================
+    # GERENCIAMENTO DE ÁUDIO
+    # ==========================================
+    def play_track(self, track_name):
+        if self.current_track == track_name: return
+        if self.current_track and self.current_track in assets.sons['ambiente']:
+            som = assets.sons['ambiente'][self.current_track]
+            if som: som.stop()
+        self.current_track = track_name
+        if track_name and track_name in assets.sons['ambiente']:
+            som = assets.sons['ambiente'][track_name]
+            if som: som.play(loops=-1, fade_ms=500)
+
+    def play_ambient(self, amb_name):
+        if self.current_ambient == amb_name: return
+        if self.current_ambient and self.current_ambient in assets.sons['ambiente']:
+            som = assets.sons['ambiente'][self.current_ambient]
+            if som: som.stop()
+        self.current_ambient = amb_name
+        if amb_name and amb_name in assets.sons['ambiente']:
+            som = assets.sons['ambiente'][amb_name]
+            if som: som.play(loops=-1, fade_ms=1000)
+
+    def play_click(self):
+        s = assets.sons['interface'].get('click')
+        if s: s.play()
+
+    def check_hover(self, rects_dict, mouse):
+        hovered = None
+        for name, rect in rects_dict.items():
+            if rect.collidepoint(mouse):
+                hovered = name
+                break
+        if hovered != self.last_hover:
+            if hovered is not None:
+                s = assets.sons['interface'].get('hover')
+                if s: s.play()
+            self.last_hover = hovered
+
     def start_game(self, player_name):
         self.current_player = player_name
         self.world = World()
@@ -123,7 +162,32 @@ class Game:
             self.clock.tick(30)
             agora = pygame.time.get_ticks()
             mouse = self.get_mapped_mouse()
+            hover_dict = {}
 
+            # Gerenciamento Musical Global
+            if self.state in [ESTADO_MENU, ESTADO_NEW_PLAYER, ESTADO_LOAD_PLAYER, ESTADO_OPTIONS, ESTADO_CONTROLS,
+                              ESTADO_LEADERBOARD]:
+                self.play_track('menu')
+                self.play_ambient(None)
+            elif self.state == ESTADO_JOGANDO:
+                self.play_track('jogo')
+
+                # Bioma Ambiente baseado na altura da câmera do player
+                linha_cam = int((self.player.wy - 100) // TAMANHO_TILE)
+                bioma_atual = self.world.fixar_bioma_linha(linha_cam, self.player.score)
+                if bioma_atual == "floresta":
+                    self.play_ambient('passaros_floresta')
+                elif bioma_atual == "urbano":
+                    self.play_ambient('vento_urbano')
+                else:
+                    self.play_ambient(None)
+            elif self.state == ESTADO_GAMEOVER:
+                self.play_track(None)
+                self.play_ambient(None)
+
+            # ==========================================
+            # LOOP DE EVENTOS
+            # ==========================================
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
@@ -137,16 +201,20 @@ class Game:
 
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         if btn_new.collidepoint(mouse):
+                            self.play_click()
                             self.state = ESTADO_NEW_PLAYER
                             self.input_text = ""
                             self.input_error = ""
                         elif btn_load.collidepoint(mouse):
+                            self.play_click()
                             self.state = ESTADO_LOAD_PLAYER
                             self.scroll_y = 0
                         elif btn_lb.collidepoint(mouse):
+                            self.play_click()
                             self.state = ESTADO_LEADERBOARD
                             self.scroll_y = 0
                         elif btn_opt.collidepoint(mouse):
+                            self.play_click()
                             self.state = ESTADO_OPTIONS
 
                 elif self.state == ESTADO_OPTIONS:
@@ -155,46 +223,53 @@ class Game:
                     btn_back = pygame.Rect(LARGURA // 2 - 120, OPT_Y_BACK, 240, 45)
 
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                        self.play_click()
                         self.state = ESTADO_MENU
                         save_game(self.save_data)
 
                     elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         if btn_fs.collidepoint(mouse):
+                            self.play_click()
                             self.settings["fullscreen"] = not self.settings["fullscreen"]
-
                             self.apply_display_settings()
                             self.update_fullscreen_background()
-
                             save_game(self.save_data)
                         elif self._try_start_slider_drag(mouse):
                             pass
                         elif btn_ctrl.collidepoint(mouse):
+                            self.play_click()
                             self.state = ESTADO_CONTROLS
                         elif btn_back.collidepoint(mouse):
+                            self.play_click()
                             self.state = ESTADO_MENU
                             save_game(self.save_data)
 
                     elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                         if self.dragging_slider:
+                            self.play_click()
                             self.dragging_slider = None
                             save_game(self.save_data)
 
                 elif self.state == ESTADO_CONTROLS:
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                        self.play_click()
                         self.state = ESTADO_OPTIONS
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         btn_fechar = pygame.Rect(LARGURA // 2 - 75, (ALTURA - 260) // 2 + 205, 150, 35)
                         if btn_fechar.collidepoint(mouse):
+                            self.play_click()
                             self.state = ESTADO_OPTIONS
 
                 elif self.state == ESTADO_LEADERBOARD:
                     if event.type == pygame.MOUSEWHEEL:
                         self.scroll_y += event.y * 30
                     elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                        self.play_click()
                         self.state = ESTADO_MENU
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         btn_back = pygame.Rect(LARGURA // 2 - 80, ALTURA - 80, 160, 40)
                         if btn_back.collidepoint(mouse):
+                            self.play_click()
                             self.state = ESTADO_MENU
 
                 elif self.state == ESTADO_NEW_PLAYER:
@@ -204,6 +279,7 @@ class Game:
                         elif event.key == pygame.K_BACKSPACE:
                             self.input_text = self.input_text[:-1]
                         elif event.key == pygame.K_RETURN:
+                            self.play_click()
                             self._try_create_player()
                         elif len(self.input_text) < 12 and event.unicode.isprintable():
                             self.input_text += event.unicode
@@ -213,14 +289,17 @@ class Game:
                         btn_create = pygame.Rect(LARGURA // 2 - 80, 300, 160, 40)
                         btn_back = pygame.Rect(LARGURA // 2 - 80, 360, 160, 40)
                         if btn_create.collidepoint(mouse):
+                            self.play_click()
                             self._try_create_player()
                         elif btn_back.collidepoint(mouse):
+                            self.play_click()
                             self.state = ESTADO_MENU
 
                 elif self.state == ESTADO_LOAD_PLAYER:
                     if event.type == pygame.MOUSEWHEEL:
                         self.scroll_y += event.y * 30
                     elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                        self.play_click()
                         self.state = ESTADO_MENU
 
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -228,6 +307,7 @@ class Game:
                         view_rect = pygame.Rect(LARGURA // 2 - 180, 120, 360, 420)
 
                         if btn_back.collidepoint(mouse):
+                            self.play_click()
                             self.state = ESTADO_MENU
                         elif view_rect.collidepoint(mouse):
                             players_rev = list(self.save_data["players"].keys())[::-1]
@@ -237,9 +317,11 @@ class Game:
                                 btn_play = pygame.Rect(row_rect.right - 105, row_rect.y + 10, 70, 30)
                                 btn_del = pygame.Rect(row_rect.right - 28, row_rect.y + 12, 20, 20)
                                 if btn_play.collidepoint(mouse):
+                                    self.play_click()
                                     self.start_game(p)
                                     break
                                 elif btn_del.collidepoint(mouse):
+                                    self.play_click()
                                     del self.save_data["players"][p]
                                     save_game(self.save_data)
                                     break
@@ -256,14 +338,18 @@ class Game:
 
                     if event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_r:
+                            self.play_click()
                             self.start_game(self.current_player)
                         if event.key == pygame.K_m:
+                            self.play_click()
                             self.state = ESTADO_MENU
 
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         if btn_retry.collidepoint(mouse):
+                            self.play_click()
                             self.start_game(self.current_player)
                         elif btn_menu.collidepoint(mouse):
+                            self.play_click()
                             self.state = ESTADO_MENU
 
             if self.dragging_slider and pygame.mouse.get_pressed()[0]:
@@ -271,10 +357,13 @@ class Game:
                     OPT_SLIDER_X, OPT_SLIDER_W, mouse[0]
                 )
 
+            # ==========================================
+            # RENDERIZAÇÃO DE TELAS E HOVERS
+            # ==========================================
             self.game_surface.fill((0, 0, 0))
 
             if self.state == ESTADO_MENU:
-                self.game_surface.blit(assets.images['fundo'], (0, 0))
+                self.game_surface.blit(assets.images['telas'].get('fullscreen'), (0, 0))
                 btn_new = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 60, 160, 45)
                 btn_load = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 5, 160, 45)
                 btn_lb = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 50, 160, 45)
@@ -283,33 +372,49 @@ class Game:
                 draw_button(self.game_surface, btn_load, "LOAD PLAYER", btn_load.collidepoint(mouse))
                 draw_button(self.game_surface, btn_lb, "LEADERBOARD", btn_lb.collidepoint(mouse))
                 draw_button(self.game_surface, btn_opt, "OPTIONS", btn_opt.collidepoint(mouse))
+                hover_dict = {"new": btn_new, "load": btn_load, "lb": btn_lb, "opt": btn_opt}
 
             elif self.state == ESTADO_OPTIONS:
-                self.game_surface.blit(assets.images['fundo'], (0, 0))
+                self.game_surface.blit(assets.images['telas'].get('fullscreen'), (0, 0))
                 draw_options_screen(self.game_surface, mouse, self.settings)
+                btn_fs = pygame.Rect(LARGURA // 2 - 120, OPT_Y_FS, 240, 40)
+                btn_ctrl = pygame.Rect(LARGURA // 2 - 120, OPT_Y_CTRL, 240, 45)
+                btn_back = pygame.Rect(LARGURA // 2 - 120, OPT_Y_BACK, 240, 45)
+                hover_dict = {"fs": btn_fs, "ctrl": btn_ctrl, "back": btn_back}
 
             elif self.state == ESTADO_CONTROLS:
-                self.game_surface.blit(assets.images['fundo'], (0, 0))
+                self.game_surface.blit(assets.images['telas'].get('fullscreen'), (0, 0))
                 draw_options_screen(self.game_surface, mouse, self.settings)
                 draw_control_setup(self.game_surface)
                 btn_fechar = pygame.Rect(LARGURA // 2 - 75, (ALTURA - 260) // 2 + 205, 150, 35)
                 draw_button(self.game_surface, btn_fechar, "FECHAR", btn_fechar.collidepoint(mouse))
+                hover_dict = {"fechar": btn_fechar}
 
             elif self.state == ESTADO_LEADERBOARD:
-                self.game_surface.blit(assets.images['fundo'], (0, 0))
+                self.game_surface.blit(assets.images['telas'].get('fullscreen'), (0, 0))
                 max_scroll = min(0, 420 - len(self.save_data["players"]) * 60 - 20)
                 self.scroll_y = clamp(self.scroll_y, max_scroll, 0)
-                draw_leaderboard_screen(self.game_surface, self.save_data["players"], mouse, self.scroll_y)
+                btn_back, _ = draw_leaderboard_screen(self.game_surface, self.save_data["players"], mouse,
+                                                      self.scroll_y)
+                hover_dict = {"back": btn_back}
 
             elif self.state == ESTADO_NEW_PLAYER:
-                self.game_surface.blit(assets.images['fundo'], (0, 0))
-                draw_new_player_screen(self.game_surface, self.input_text, self.input_error, mouse)
+                self.game_surface.blit(assets.images['telas'].get('fullscreen'), (0, 0))
+                btn_create, btn_back = draw_new_player_screen(self.game_surface, self.input_text, self.input_error,
+                                                              mouse)
+                hover_dict = {"create": btn_create, "back": btn_back}
 
             elif self.state == ESTADO_LOAD_PLAYER:
-                self.game_surface.blit(assets.images['fundo'], (0, 0))
+                self.game_surface.blit(assets.images['telas'].get('fullscreen'), (0, 0))
                 max_scroll = min(0, 420 - len(self.save_data["players"]) * 60 - 20)
                 self.scroll_y = clamp(self.scroll_y, max_scroll, 0)
-                draw_load_player_screen(self.game_surface, self.save_data["players"], mouse, self.scroll_y)
+                play_btns, del_btns, btn_back, view_rect = draw_load_player_screen(self.game_surface,
+                                                                                   self.save_data["players"], mouse,
+                                                                                   self.scroll_y)
+                hover_dict = {"back": btn_back}
+                if view_rect.collidepoint(mouse):
+                    for k, v in play_btns.items(): hover_dict[f"p_{k}"] = v
+                    for k, v in del_btns.items(): hover_dict[f"d_{k}"] = v
 
             elif self.state == ESTADO_JOGANDO:
                 self.player.update(agora)
@@ -318,6 +423,9 @@ class Game:
                 if not self.record_broken and self.player.score > self.match_high_score and self.match_high_score > 0:
                     self.record_broken = True
                     self.record_banner_time = agora
+                    s = assets.sons['interface'].get('recorde')
+                    if s: s.play()
+
                     for _ in range(40):
                         vx = random.uniform(-5, 5)
                         vy = random.uniform(-5, 5)
@@ -338,7 +446,7 @@ class Game:
 
                 draw_hud(self.game_surface, self.current_player, self.player.score, self.match_high_score)
                 draw_powerups_hud(self.game_surface, self.player, agora)
-                self.world.draw_biome_transitions(self.game_surface, agora)
+                self.world.draw_biome_transitions(self.game_surface)
 
                 if self.record_broken and (agora - self.record_banner_time) < 2500:
                     t = agora - self.record_banner_time
@@ -381,6 +489,18 @@ class Game:
                         "time_s": (agora - self.match_start_time) // 1000,
                     }
 
+                    # Tocar Som de Morte
+                    if cause == "afogado":
+                        s = assets.sons['mortes'].get('agua')
+                    elif cause == "atropelado":
+                        s = assets.sons['mortes'].get('carro')
+                    elif cause == "borda":
+                        s = assets.sons['mortes'].get('borda')
+                    else:
+                        s = assets.sons['mortes'].get('geral')
+
+                    if s: s.play()
+
                     self.state = ESTADO_GAMEOVER
                     self.shake_remaining = 6
 
@@ -390,27 +510,37 @@ class Game:
                     self.shake_remaining -= 1
 
                 cause = self.death_stats.get("cause", "")
-                bg_img = assets.images.get('fundo_fim', self.game_surface.copy())
-                if cause == "afogado" and 'gameover_afogado' in assets.images:
-                    bg_img = assets.images['gameover_afogado']
-                elif cause == "borda" and 'gameover_borda' in assets.images:
-                    bg_img = assets.images['gameover_borda']
 
-                self.game_surface.blit(bg_img, (offset_x, 0))
+                # Fundo correto de morte
+                if cause == "afogado":
+                    bg_img = assets.images['telas'].get('morte_afogado')
+                elif cause == "borda":
+                    bg_img = assets.images['telas'].get('morte_borda')
+                elif cause == "atropelado":
+                    bg_img = assets.images['telas'].get('morte_carro')
+                else:
+                    bg_img = assets.images['telas'].get('fullscreen')
+
+                if bg_img:
+                    self.game_surface.blit(bg_img, (offset_x, 0))
 
                 py = (ALTURA - GAMEOVER_PANEL_H) // 2 - 20
                 btn_retry = pygame.Rect(LARGURA // 2 - 150, py + GAMEOVER_PANEL_H - 70, 140, 45)
                 btn_menu = pygame.Rect(LARGURA // 2 + 10, py + GAMEOVER_PANEL_H - 70, 140, 45)
+                hover_dict = {"retry": btn_retry, "menu": btn_menu}
 
                 draw_game_over_screen(self.game_surface, self.death_stats, mouse, btn_retry, btn_menu)
 
+            # Executa a checagem global de Hover para todas as telas
+            self.check_hover(hover_dict, mouse)
+
+            # Estica a tela se precisar e atualiza o display
             scaled_final = pygame.transform.scale(
                 self.game_surface,
                 (self.scaled_w, self.scaled_h)
             )
 
             self.window.blit(self.bg_fullscreen, (0, 0))
-
             self.window.blit(scaled_final, (self.offset_x, self.offset_y))
 
             pygame.display.flip()

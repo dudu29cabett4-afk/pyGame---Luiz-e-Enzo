@@ -12,7 +12,7 @@ class Particle:
         self.born = pygame.time.get_ticks()
 
     def update(self):
-        self.x += self.vx;
+        self.x += self.vx
         self.y += self.vy
 
     def draw(self, surface, camera_y, agora):
@@ -132,18 +132,18 @@ class Player:
         novo_wx, novo_wy = self.wx, self.wy
 
         if key == pygame.K_w:
-            novo_wy -= TAMANHO_TILE;
+            novo_wy -= TAMANHO_TILE
             self.imagem = assets.images['p_cima']
             novo_wx = round(novo_wx / TAMANHO_TILE) * TAMANHO_TILE
         elif key == pygame.K_s:
-            novo_wy += TAMANHO_TILE;
+            novo_wy += TAMANHO_TILE
             self.imagem = assets.images['p_baixo']
             novo_wx = round(novo_wx / TAMANHO_TILE) * TAMANHO_TILE
         elif key == pygame.K_a:
-            novo_wx -= TAMANHO_TILE;
+            novo_wx -= TAMANHO_TILE
             self.imagem = assets.images['p_esq']
         elif key == pygame.K_d:
-            novo_wx += TAMANHO_TILE;
+            novo_wx += TAMANHO_TILE
             self.imagem = assets.images['p_dir']
 
         test_rect = pygame.Rect(int(novo_wx) + 8, int(novo_wy) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
@@ -166,15 +166,26 @@ class Player:
                 tipo = self.world.gerar_tile(nova_linha, self.score)[1]
                 bioma = self.world.fixar_bioma_linha(nova_linha, self.score)
 
-                if tipo == TIPO_GRAMA and bioma == "floresta":
-                    som = assets.sons.get("passo_grama")
-                    if som: som.play()
+                # ==========================================
+                # LÓGICA DE ÁUDIO DE PASSOS (ATUALIZADA)
+                # ==========================================
+                som_tocar = None
+                if tipo == TIPO_GRAMA:
+                    if bioma == "floresta":
+                        lista_sons = assets.sons['passos'].get('floresta')
+                        if lista_sons: som_tocar = random.choice(lista_sons)
+                    elif bioma == "deserto":
+                        lista_sons = assets.sons['passos'].get('deserto')
+                        if lista_sons: som_tocar = random.choice(lista_sons)
+                    elif bioma == "urbano":
+                        som_tocar = assets.sons['passos'].get('terra')
                 elif tipo == TIPO_ESTRADA:
-                    som = assets.sons.get("passo_asfalto")
-                    if som: som.play()
-                elif bioma == "deserto" and tipo == TIPO_GRAMA:
-                    som = assets.sons.get("passo_areia")
-                    if som: som.play()
+                    som_tocar = assets.sons['passos'].get('rua')
+                elif tipo == TIPO_RIO:
+                    som_tocar = assets.sons['passos'].get('agua')
+
+                if som_tocar:
+                    som_tocar.play()
 
         self.wx = clamp(self.wx, 0.0, float(LARGURA - TAMANHO_TILE))
 
@@ -211,8 +222,12 @@ class Player:
                 pu.coletado = True
                 if pu.tipo == "escudo":
                     self.tem_escudo = True
+                    som = assets.sons['powerups'].get('escudo')
+                    if som: som.play()
                 elif pu.tipo == "xp2":
                     self.xp2_ate = agora + POWERUP_XP2_DURACAO_MS
+                    som = assets.sons['powerups'].get('bonus_2x')
+                    if som: som.play()
 
         if tipo == TIPO_RIO and not self.world.rio_congelado(self.score):
             ld = self.world.lane_data.get(player_linha, {})
@@ -228,10 +243,7 @@ class Player:
             for t in [tr for tr in self.world.troncos_ativos if tr.linha == player_linha]:
                 if t.x <= self.wx < t.x + t.largura:
                     if self.tronco_atual != t:
-                        if t.tipo == "crocodilo":
-                            som = assets.sons.get("passo_jacare")
-                        else:
-                            som = assets.sons.get("passo_madeira")
+                        som = assets.sons['passos'].get('tronco')
                         if som: som.play()
 
                     self.tronco_atual, self.slot_atual = t, t.slot_do_x(self.wx)
