@@ -114,7 +114,7 @@ def load_all_assets():
     # CARREGAMENTO DE ENTIDADES GLOBAIS (IMAGENS)
     # =========================================================
     # Estradas (Tamanho LARGURA x TAMANHO_TILE)
-    images['estradas'] = load_folder_as_list("imagens/estradas", (LARGURA, TAMANHO_TILE))
+    images['estradas'] = load_folder_as_list("imagens/estradas", (TAMANHO_TILE, TAMANHO_TILE))
 
     # Lilypads
     images['lilypads'] = load_folder_as_list("imagens/lilypads", (TAMANHO_TILE, TAMANHO_TILE))
@@ -136,14 +136,15 @@ def load_all_assets():
 
     # Elementos do Rio
     images['rios'] = {
-        'jacare': load_img("imagens/rios/jacare.png", (86, 65)),
-        'jacare_flip': pygame.transform.flip(load_img("imagens/rios/jacare.png", (86, 65)), True, False),
+        'jacare': load_img("imagens/rios/jacaré.png", (86, 65)),
+        'jacare_flip': pygame.transform.flip(load_img("imagens/rios/jacaré.png", (86, 65)), True, False),
         'tronco': load_img("imagens/rios/tronco.png", (TAMANHO_TILE, TAMANHO_TILE))
     }
 
     # Telas de Morte e Fundo
     images['telas'] = {
         'fullscreen': load_img("imagens/telas/fullscreen.png", (LARGURA, ALTURA)),
+        'fundomenu': load_img("imagens/telas/fundomenu.png", (LARGURA, ALTURA)),
         'morte_afogado': load_img("imagens/telas/mortes/morte_afogado.png", (LARGURA, ALTURA)),
         'morte_borda': load_img("imagens/telas/mortes/morte_borda.png", (LARGURA, ALTURA)),
         'morte_carro': load_img("imagens/telas/mortes/morte_carro.png", (LARGURA, ALTURA))
@@ -173,8 +174,10 @@ def load_all_assets():
     }
 
     sons['ambiente'] = {
-        'jogo': load_sound("sons/ambiente/jogo.mp3", 0.4),
-        'menu': load_sound("sons/ambiente/menu.mp3", 0.4),
+        # Salvamos apenas o caminho para fazer streaming no main.py e não estourar a RAM
+        'jogo_path': os.path.join(base, "sons/ambiente/jogo.mp3"),
+        'menu_path': os.path.join(base, "sons/ambiente/menu.mp3"),
+        # Sons curtos continuam na RAM para tocarem em paralelo
         'passaros_floresta': load_sound("sons/ambiente/passaros_floresta.mp3", 0.3),
         'vento_urbano': load_sound("sons/ambiente/vento_urbano.mp3", 0.3),
     }

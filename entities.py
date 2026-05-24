@@ -11,9 +11,13 @@ class Particle:
         self.x, self.y, self.vx, self.vy, self.color, self.duration, self.radius = x, y, vx, vy, color, duration, radius
         self.born = pygame.time.get_ticks()
 
-    def update(self):
-        self.x += self.vx
-        self.y += self.vy
+        # Cache da surface para evitar alocação no draw
+        max_r = int(self.radius * 2)
+        self.surf = pygame.Surface((max_r * 2, max_r * 2), pygame.SRCALPHA)
+
+    def update(self, dt):
+        self.x += self.vx * dt
+        self.y += self.vy * dt
 
     def draw(self, surface, camera_y, agora):
         age = agora - self.born
@@ -21,9 +25,10 @@ class Particle:
         frac = 1 - (age / self.duration)
         alpha = int(255 * frac)
         r = int(self.radius * (1 + (1 - frac)))
-        surf = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
-        pygame.draw.circle(surf, (*self.color[:3], alpha), (r, r), r)
-        surface.blit(surf, (int(self.x) - r, int(self.y - camera_y) - r))
+
+        self.surf.fill((0, 0, 0, 0))  # Limpa o frame anterior
+        pygame.draw.circle(self.surf, (*self.color[:3], alpha), (r, r), r)
+        surface.blit(self.surf, (int(self.x) - r, int(self.y - camera_y) - r))
         return True
 
 
@@ -31,6 +36,10 @@ class Fumaca:
     def __init__(self, wx, wy, vx, vy, nascida_em):
         self.wx, self.wy, self.vx, self.vy, self.nascida_em = wx, wy, vx, vy, nascida_em
         self.duracao, self.raio = random.randint(450, 700), random.randint(4, 6)
+
+        # Cache da surface
+        max_r = self.raio + 5
+        self.surf = pygame.Surface((max_r * 4, max_r * 4), pygame.SRCALPHA)
 
     def expirou(self, agora):
         return agora - self.nascida_em > self.duracao
@@ -43,11 +52,12 @@ class Fumaca:
             if -30 <= sy <= ALTURA + 30:
                 raio = int(self.raio + frac * 5)
                 alpha = int(140 * (1.0 - frac))
-                surf = pygame.Surface((raio * 4, raio * 4), pygame.SRCALPHA)
-                pygame.draw.circle(surf, (210, 210, 210, alpha), (raio * 2, raio * 2), raio)
-                pygame.draw.circle(surf, (240, 240, 240, max(0, alpha - 40)), (raio * 2 - 2, raio * 2 - 2),
+
+                self.surf.fill((0, 0, 0, 0))
+                pygame.draw.circle(self.surf, (210, 210, 210, alpha), (raio * 2, raio * 2), raio)
+                pygame.draw.circle(self.surf, (240, 240, 240, max(0, alpha - 40)), (raio * 2 - 2, raio * 2 - 2),
                                    max(1, raio - 1))
-                surface.blit(surf, (sx - raio * 2, sy - raio * 2))
+                surface.blit(self.surf, (sx - raio * 2, sy - raio * 2))
 
 
 class PowerUp:
@@ -55,6 +65,12 @@ class PowerUp:
 
     def __init__(self, wx, wy, tipo):
         self.wx, self.wy, self.tipo, self.coletado = wx, wy, tipo, False
+
+        # Cache do brilho
+        self.glow_surf = pygame.Surface((self.TAMANHO + 16, self.TAMANHO + 16), pygame.SRCALPHA)
+        glow_cor = (255, 190, 70) if self.tipo == "xp2" else (255, 230, 80)
+        pygame.draw.circle(self.glow_surf, glow_cor, (self.TAMANHO // 2 + 8, self.TAMANHO // 2 + 8),
+                           self.TAMANHO // 2 + 6)
 
     def rect_mundo(self):
         m = 6
@@ -68,10 +84,9 @@ class PowerUp:
             t = pygame.time.get_ticks()
             alpha = int(120 + 80 * abs((t % 800) / 400.0 - 1))
             icon = assets.images['pu_xp2'] if self.tipo == "xp2" else assets.images['pu_escudo']
-            glow_cor = (255, 190, 70, alpha) if self.tipo == "xp2" else (255, 230, 80, alpha)
-            glow = pygame.Surface((self.TAMANHO + 16, self.TAMANHO + 16), pygame.SRCALPHA)
-            pygame.draw.circle(glow, glow_cor, (self.TAMANHO // 2 + 8, self.TAMANHO // 2 + 8), self.TAMANHO // 2 + 6)
-            surface.blit(glow, (sx - 8, sy - 8))
+
+            self.glow_surf.set_alpha(alpha)
+            surface.blit(self.glow_surf, (sx - 8, sy - 8))
             surface.blit(icon, (sx, sy))
 
 
@@ -99,7 +114,6 @@ class Player:
         self.wx = float((LARGURA // TAMANHO_TILE // 2) * TAMANHO_TILE)
         self.wy = float(self.linha * TAMANHO_TILE)
 
-        # Carrega o dicionário com as 4 direções da cor sorteada
         self.skin = assets.images['personagens'].get(cor_skin, assets.images['personagens']['verde'])
         self.imagem = self.skin['frente']
 
@@ -118,11 +132,29 @@ class Player:
         self.visual_offset_y = 0.0
         self.last_move_axis = 'y'
 
+        # Cache das surfaces de UI do player
+        self.ind_ativo = pygame.Surface((TAMANHO_TILE - 8, 4), pygame.SRCALPHA)
+        self.ind_ativo.fill((255, 255, 100, 160))
+        self.ind_inativo = pygame.Surface((TAMANHO_TILE - 8, 4), pygame.SRCALPHA)
+        self.ind_inativo.fill((255, 255, 255, 60))
+
+        self.aura_escudo = pygame.Surface((TAMANHO_TILE + 16, TAMANHO_TILE + 16), pygame.SRCALPHA)
+        pygame.draw.circle(self.aura_escudo, (255, 220, 60), (TAMANHO_TILE // 2 + 8, TAMANHO_TILE // 2 + 8),
+                           TAMANHO_TILE // 2 + 6)
+
     def rect(self, camera_y):
-        return pygame.Rect(int(self.wx) + 8, int(self.wy - camera_y) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
+        return pygame.Rect(
+            int(self.wx + self.visual_offset_x) + 8,
+            int(self.wy + self.visual_offset_y - camera_y) + 8,
+            TAMANHO_TILE - 16, TAMANHO_TILE - 16
+        )
 
     def world_rect(self):
-        return pygame.Rect(int(self.wx) + 8, int(self.wy) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
+        return pygame.Rect(
+            int(self.wx + self.visual_offset_x) + 8,
+            int(self.wy + self.visual_offset_y) + 8,
+            TAMANHO_TILE - 16, TAMANHO_TILE - 16
+        )
 
     def queue_input(self, key):
         if len(self.input_buffer) < 2:
@@ -291,17 +323,13 @@ class Player:
             sy_t = int(self.tronco_atual.linha * TAMANHO_TILE - camera_y)
             for s in range(self.tronco_atual.num_slots):
                 sx_slot = int(self.tronco_atual.slot_x_mundo(s))
-                cor = (255, 255, 100, 160) if s == self.slot_atual else (255, 255, 255, 60)
-                indicador = pygame.Surface((TAMANHO_TILE - 8, 4), pygame.SRCALPHA)
-                indicador.fill(cor)
-                surface.blit(indicador, (sx_slot + 4, sy_t + TAMANHO_TILE - 6))
+                surf_ind = self.ind_ativo if s == self.slot_atual else self.ind_inativo
+                surface.blit(surf_ind, (sx_slot + 4, sy_t + TAMANHO_TILE - 6))
 
         if self.tem_escudo:
-            aura = pygame.Surface((TAMANHO_TILE + 16, TAMANHO_TILE + 16), pygame.SRCALPHA)
             pulso = int(120 + 80 * abs((agora % 600) / 300.0 - 1))
-            pygame.draw.circle(aura, (255, 220, 60, pulso), (TAMANHO_TILE // 2 + 8, TAMANHO_TILE // 2 + 8),
-                               TAMANHO_TILE // 2 + 6)
-            surface.blit(aura, (cx - 8, cy - 8))
+            self.aura_escudo.set_alpha(pulso)
+            surface.blit(self.aura_escudo, (cx - 8, cy - 8))
             surface.blit(img_to_draw, (px, py))
         elif agora < self.graca_ate:
             if (agora // 80) % 2 == 0: surface.blit(img_to_draw, (px, py))
@@ -314,7 +342,8 @@ class Carro:
         self.linha, self.x, self.velocidade, self.direcao, self.img = linha, x, velocidade, direcao, img
         self.largura = img.get_width()
 
-    def update(self): self.x += self.velocidade * self.direcao
+    def update(self, dt):
+        self.x += self.velocidade * self.direcao * dt
 
     def screen_y(self, camera_y): return int(self.linha * TAMANHO_TILE - camera_y)
 
@@ -337,10 +366,13 @@ class Tronco:
         else:
             base_img = assets.images['rios']['tronco']
 
-        self.img = pygame.transform.scale(base_img, (self.largura, TAMANHO_TILE))
+        self.img = pygame.Surface((self.largura, TAMANHO_TILE), pygame.SRCALPHA)
+        # Ladrilhar (Tiling) a textura base para não esticar
+        for px in range(0, self.largura, TAMANHO_TILE):
+            self.img.blit(base_img, (px, 0))
 
-    def update(self):
-        self.x += self.velocidade * self.direcao
+    def update(self, dt):
+        self.x += self.velocidade * self.direcao * dt
 
     def slot_x_mundo(self, slot):
         return self.x + slot * TAMANHO_TILE

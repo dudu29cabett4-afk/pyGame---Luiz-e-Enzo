@@ -36,6 +36,7 @@ class Game:
         self.clock = pygame.time.Clock()
 
         assets.load_all_assets()
+        self.apply_audio_volumes()  # Aplica os volumes salvos logo ao abrir o jogo
         self.update_fullscreen_background()
 
         self.state = ESTADO_MENU
@@ -61,34 +62,26 @@ class Game:
         self.current_ambient = None
         self.last_hover = None
 
+        # Cache da fonte do banner de recorde
+        texto_rec = "NOVO RECORDE!"
+        self.record_surf_main = assets.fonts['botao_grande'].render(texto_rec, True, (255, 215, 0))
+        self.record_surf_shadow = assets.fonts['botao_grande'].render(texto_rec, True, (0, 0, 0))
+
     def apply_display_settings(self):
-        if self.settings.get("fullscreen", False):
-            info = pygame.display.Info()
-            self.window = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
-        else:
-            self.window = pygame.display.set_mode((LARGURA, ALTURA))
+        # O pygame.SCALED delega o upscale e o letterbox (barras pretas) para o hardware
+        flags = pygame.SCALED
+        if self.settings["fullscreen"]:
+            flags |= pygame.FULLSCREEN
 
-        win_w, win_h = self.window.get_size()
-        scale_w = win_w / LARGURA
-        scale_h = win_h / ALTURA
-        self.scale = min(scale_w, scale_h)
-
-        self.scaled_w = int(LARGURA * self.scale)
-        self.scaled_h = int(ALTURA * self.scale)
-        self.offset_x = (win_w - self.scaled_w) // 2
-        self.offset_y = (win_h - self.scaled_h) // 2
+        self.window = pygame.display.set_mode((LARGURA, ALTURA), flags)
 
     def update_fullscreen_background(self):
-        self.bg_fullscreen = pygame.transform.scale(
-            assets.images['telas']['fullscreen'],
-            self.window.get_size()
-        )
+        # Com pygame.SCALED, a resolução lógica é sempre LARGURA x ALTURA
+        self.bg_fullscreen = assets.images['telas']['fullscreen']
 
     def get_mapped_mouse(self):
-        raw_mx, raw_my = pygame.mouse.get_pos()
-        mx = (raw_mx - self.offset_x) / self.scale
-        my = (raw_my - self.offset_y) / self.scale
-        return int(mx), int(my)
+        # Com pygame.SCALED, o Pygame mapeia as coordenadas do mouse automaticamente
+        return pygame.mouse.get_pos()
 
     def _slider_y_map(self):
         return {
@@ -106,18 +99,43 @@ class Game:
                 return True
         return False
 
+    def apply_audio_volumes(self):
+        master = self.settings['vol_master'] / 100.0
+        music = self.settings['vol_music'] / 100.0 * master
+        sfx = self.settings['vol_sfx'] / 100.0 * master
+
+        # Aplica volume no streaming de música principal
+        pygame.mixer.music.set_volume(music)
+
+        # Exemplo de aplicação na música de fundo e efeitos
+        for som in assets.sons['ambiente'].values():
+            if isinstance(som, pygame.mixer.Sound): # Ignora as strings de path
+                som.set_volume(music)
+        for som in assets.sons['interface'].values():
+            if isinstance(som, pygame.mixer.Sound):
+                som.set_volume(sfx)
+        for categoria in ['passos', 'powerups', 'mortes']:
+            if categoria in assets.sons:
+                for som in assets.sons[categoria].values():
+                    if isinstance(som, list):
+                        for s in som: s.set_volume(sfx)
+                    elif isinstance(som, pygame.mixer.Sound):
+                        som.set_volume(sfx)
+
     # ==========================================
     # GERENCIAMENTO DE ÁUDIO
     # ==========================================
     def play_track(self, track_name):
         if self.current_track == track_name: return
-        if self.current_track and self.current_track in assets.sons['ambiente']:
-            som = assets.sons['ambiente'][self.current_track]
-            if som: som.stop()
         self.current_track = track_name
-        if track_name and track_name in assets.sons['ambiente']:
-            som = assets.sons['ambiente'][track_name]
-            if som: som.play(loops=-1, fade_ms=500)
+
+        if track_name and (track_name + '_path') in assets.sons['ambiente']:
+            caminho = assets.sons['ambiente'][track_name + '_path']
+            pygame.mixer.music.load(caminho)
+            pygame.mixer.music.play(loops=-1, fade_ms=500)
+            self.apply_audio_volumes()  # Garante que a música inicie com o volume correto
+        else:
+            pygame.mixer.music.fadeout(500)
 
     def play_ambient(self, amb_name):
         if self.current_ambient == amb_name: return
@@ -163,7 +181,9 @@ class Game:
 
     def run(self):
         while True:
-            self.clock.tick(30)
+            delta_ms = self.clock.tick(30)
+            dt = delta_ms / 33.333
+
             agora = pygame.time.get_ticks()
             mouse = self.get_mapped_mouse()
             hover_dict = {}
@@ -252,6 +272,7 @@ class Game:
                         if self.dragging_slider:
                             self.play_click()
                             self.dragging_slider = None
+                            self.apply_audio_volumes()  # Atualiza o volume em tempo real ao soltar
                             save_game(self.save_data)
 
                 elif self.state == ESTADO_CONTROLS:
@@ -367,7 +388,7 @@ class Game:
             self.game_surface.fill((0, 0, 0))
 
             if self.state == ESTADO_MENU:
-                self.game_surface.blit(assets.images['telas'].get('fullscreen'), (0, 0))
+                self.game_surface.blit(assets.images['telas'].get('fundomenu'), (0, 0))
                 btn_new = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 60, 160, 45)
                 btn_load = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 - 5, 160, 45)
                 btn_lb = pygame.Rect(LARGURA // 2 - 80, ALTURA // 2 + 50, 160, 45)
@@ -422,7 +443,7 @@ class Game:
 
             elif self.state == ESTADO_JOGANDO:
                 self.player.update(agora)
-                self.world.update(self.player, self.player.score, agora)
+                self.world.update(self.player, self.player.score, agora, dt)
 
                 if not self.record_broken and self.player.score > self.match_high_score and self.match_high_score > 0:
                     self.record_broken = True
@@ -465,15 +486,12 @@ class Game:
                         frac = (t - 2000) / 500.0
                         y = 80 - 130 * (frac ** 2)
 
-                    texto = "NOVO RECORDE!"
-                    surf_main = assets.fonts['botao_grande'].render(texto, True, (255, 215, 0))
-                    surf_shadow = assets.fonts['botao_grande'].render(texto, True, (0, 0, 0))
+                    # Usa as surfaces cacheadas em vez de renderizar a fonte novamente
+                    new_w = int(self.record_surf_main.get_width() * pulse)
+                    new_h = int(self.record_surf_main.get_height() * pulse)
 
-                    new_w = int(surf_main.get_width() * pulse)
-                    new_h = int(surf_main.get_height() * pulse)
-
-                    surf_main = pygame.transform.scale(surf_main, (new_w, new_h))
-                    surf_shadow = pygame.transform.scale(surf_shadow, (new_w, new_h))
+                    surf_main = pygame.transform.scale(self.record_surf_main, (new_w, new_h))
+                    surf_shadow = pygame.transform.scale(self.record_surf_shadow, (new_w, new_h))
 
                     rect = surf_main.get_rect(center=(LARGURA // 2, int(y)))
                     self.game_surface.blit(surf_shadow, (rect.x + 3, rect.y + 3))
@@ -538,14 +556,8 @@ class Game:
             # Executa a checagem global de Hover para todas as telas
             self.check_hover(hover_dict, mouse)
 
-            # Estica a tela se precisar e atualiza o display
-            scaled_final = pygame.transform.scale(
-                self.game_surface,
-                (self.scaled_w, self.scaled_h)
-            )
-
-            self.window.blit(self.bg_fullscreen, (0, 0))
-            self.window.blit(scaled_final, (self.offset_x, self.offset_y))
+            # Com pygame.SCALED, basta desenhar a game_surface na window sem transform.scale
+            self.window.blit(self.game_surface, (0, 0))
 
             pygame.display.flip()
 

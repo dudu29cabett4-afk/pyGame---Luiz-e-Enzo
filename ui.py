@@ -5,6 +5,16 @@ from config import *
 import assets
 from utils import draw_text_shadow, clamp
 
+# Cache global para overlays escuros
+_overlay_cache = {}
+
+def get_overlay(alpha):
+    if alpha not in _overlay_cache:
+        surf = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
+        surf.fill((0, 0, 0, alpha))
+        _overlay_cache[alpha] = surf
+    return _overlay_cache[alpha]
+
 # Layout da tela de opções (compartilhado com main.py)
 OPT_SLIDER_X = LARGURA // 2 - 100
 OPT_SLIDER_W = 200
@@ -60,9 +70,7 @@ def draw_slider(surface, x, y, w, h, value, label):
 
 
 def draw_options_screen(surface, mouse_pos, settings):
-    overlay = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 210))
-    surface.blit(overlay, (0, 0))
+    surface.blit(get_overlay(210), (0, 0))
 
     draw_text_shadow(surface, assets.fonts['botao_grande'], "OPTIONS", (255, 210, 50), (LARGURA // 2, 70))
 
@@ -98,9 +106,7 @@ def draw_danger_zone(surface, camera_y, player_wy):
 
 
 def draw_control_setup(surface):
-    overlay = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 180))
-    surface.blit(overlay, (0, 0))
+    surface.blit(get_overlay(180), (0, 0))
     pw, ph = 320, 260
     px, py = (LARGURA - pw) // 2, (ALTURA - ph) // 2
     painel = pygame.Surface((pw, ph), pygame.SRCALPHA)
@@ -144,9 +150,7 @@ def draw_powerups_hud(surface, player, agora):
 
 
 def draw_new_player_screen(surface, input_text, error_msg, mouse_pos):
-    overlay = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
-    surface.blit(overlay, (0, 0))
+    surface.blit(get_overlay(200), (0, 0))
     draw_text_shadow(surface, assets.fonts['botao_grande'], "NEW PLAYER", (255, 210, 50), (LARGURA // 2, 150))
     box_rect = pygame.Rect(LARGURA // 2 - 120, 200, 240, 40)
     pygame.draw.rect(surface, (20, 20, 40), box_rect, border_radius=5)
@@ -164,9 +168,7 @@ def draw_new_player_screen(surface, input_text, error_msg, mouse_pos):
 
 
 def draw_load_player_screen(surface, players_dict, mouse_pos, scroll_y):
-    overlay = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
-    surface.blit(overlay, (0, 0))
+    surface.blit(get_overlay(200), (0, 0))
     draw_text_shadow(surface, assets.fonts['botao_grande'], "SELECT PLAYER", (255, 210, 50), (LARGURA // 2, 80))
     play_buttons = {}
     delete_buttons = {}
@@ -209,9 +211,7 @@ def draw_load_player_screen(surface, players_dict, mouse_pos, scroll_y):
 
 
 def draw_leaderboard_screen(surface, players_dict, mouse_pos, scroll_y):
-    overlay = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
-    surface.blit(overlay, (0, 0))
+    surface.blit(get_overlay(200), (0, 0))
     draw_text_shadow(surface, assets.fonts['botao_grande'], "LEADERBOARD", (255, 210, 50), (LARGURA // 2, 80))
     view_rect = pygame.Rect(LARGURA // 2 - 180, 120, 360, 420)
     pygame.draw.rect(surface, (15, 18, 42), view_rect, border_radius=10)
@@ -256,9 +256,9 @@ GAMEOVER_PANEL_H = 300
 
 
 def draw_game_over_screen(surface, stats, mouse_pos, btn_retry, btn_menu):
-    # Fundo customizado de atropelamento
-    if stats['cause'] == "atropelado":
-        surface.blit(assets.images["bg_atropelo"], (0, 0))
+    # MOTIVO TÉCNICO: Removido o bloco "if stats['cause'] == 'atropelado': surface.blit(...)"
+    # que chamava a chave inexistente "bg_atropelo". O main.py já cuida desse fundo.
+
     pw, ph = 340, GAMEOVER_PANEL_H
     px, py = (LARGURA - pw) // 2, (ALTURA - ph) // 2 - 20
 

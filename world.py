@@ -3,9 +3,8 @@ import random
 import pygame
 from config import *
 import assets
-from entities import Carro, Tronco, Arvore, Particle, Fumaca, VitoriaRegia, PowerUp
+from entities import Carro, Tronco, Obstaculo, Particle, Fumaca, Lilypad, PowerUp
 from utils import clamp
-
 
 class World:
     def __init__(self):
@@ -29,6 +28,12 @@ class World:
         # Pré-gera as primeiras linhas seguras e do começo do jogo
         for l in range(-5, 10):
             self.gerar_tile(l)
+
+    def colide_com_arvore(self, rect):
+        return any(a.world_rect().colliderect(rect) for a in self.arvores_ativas)
+
+    def colide_com_vitoria_regia(self, rect):
+        return any(v.world_rect().colliderect(rect) for v in self.vitorias_ativas)
 
     def _registrar_transicao_bioma(self, linha, bioma_anterior, bioma_atual):
         chave = (linha, bioma_anterior, bioma_atual)
@@ -87,26 +92,21 @@ class World:
 
                 tipo = random.choices([TIPO_GRAMA, TIPO_ESTRADA, TIPO_RIO], weights=pesos)[0]
 
-            # Escolhe as imagens dinâmicas baseadas no tipo gerado
+            colunas = (LARGURA // TAMANHO_TILE) + 1
+            tiles_sorteados = []
+
             if tipo == TIPO_ESTRADA:
-                estradas_disponiveis = assets.images.get('estradas', [])
-                img_fundo = random.choice(estradas_disponiveis) if estradas_disponiveis else None
-                self.tile_map[linha] = (img_fundo, tipo)
+                banco_imagens = assets.images.get('estradas', [])
+            elif tipo == TIPO_GRAMA:
+                banco_imagens = assets.images['biomas'][bioma]['solos']
             else:
-                colunas = (LARGURA // TAMANHO_TILE) + 1
-                tiles_sorteados = []
+                banco_imagens = assets.images['biomas'][bioma]['aguas']
 
-                # Pega a lista do bioma atual (solos ou aguas)
-                if tipo == TIPO_GRAMA:
-                    banco_imagens = assets.images['biomas'][bioma]['solos']
-                else:
-                    banco_imagens = assets.images['biomas'][bioma]['aguas']
+            for _ in range(colunas):
+                img_sorteada = random.choice(banco_imagens) if banco_imagens else None
+                tiles_sorteados.append(img_sorteada)
 
-                for _ in range(colunas):
-                    img_sorteada = random.choice(banco_imagens) if banco_imagens else None
-                    tiles_sorteados.append(img_sorteada)
-
-                self.tile_map[linha] = (tiles_sorteados, tipo)
+            self.tile_map[linha] = (tiles_sorteados, tipo)
 
         return self.tile_map[linha]
 
@@ -234,11 +234,13 @@ class World:
                             self.troncos_ativos.append(Tronco(l, spawn_x, ld['v'], ld['dir'], slots, t_tipo))
                             ld['next_x'] += ld['dir'] * random.randint(tron_sp_min, tron_sp_max)
 
-    def update(self, player, score, agora):
+    def update(self, player, score, agora, dt):
         if player.wy < self.camera_y + PLAYER_ALVO_Y:
             self.camera_ativa = True
 
-        vel_scroll = VEL_SCROLL_INICIAL + (VEL_SCROLL_MAX - VEL_SCROLL_INICIAL) * min(score / SCORE_PARA_MAX_VEL, 1.0)
+        # MOTIVO TÉCNICO: A velocidade da câmera também deve ser escalada pelo dt para não engasgar.
+        vel_scroll = (VEL_SCROLL_INICIAL + (VEL_SCROLL_MAX - VEL_SCROLL_INICIAL) * min(score / SCORE_PARA_MAX_VEL,
+                                                                                       1.0)) * dt
         if self.camera_ativa:
             self.camera_y -= vel_scroll
 
@@ -246,12 +248,12 @@ class World:
         if self.camera_y > target_cam:
             self.camera_y -= max(vel_scroll + 1.0, (self.camera_y - target_cam) * 0.22)
 
-        linha_ini = int(self.camera_y // TAMANHO_TILE) - 1
+        linha_ini = int(self.camera_y // TAMANHO_TILE) - 15
         linha_fim = int((self.camera_y + ALTURA) // TAMANHO_TILE) + 1
         self.spawn_entities(linha_ini, linha_fim, score, agora)
 
         for c in self.carros_ativos:
-            c.update()
+            c.update(dt)  # Passando dt
             if random.random() < 0.35:
                 wx = c.x + 4 if c.direcao == 1 else c.x + c.largura - 4
                 vx = random.uniform(-0.02, -0.01) if c.direcao == 1 else random.uniform(0.01, 0.02)
@@ -259,14 +261,36 @@ class World:
                     Fumaca(wx, c.linha * TAMANHO_TILE + TAMANHO_TILE - 8, vx, random.uniform(-0.03, -0.018), agora))
 
         for t in self.troncos_ativos:
-            t.update()
+            t.update(dt)  # Passando dt
         for p in self.particles:
-            p.update()
+            p.update(dt)  # Passando dt
 
-        self.carros_ativos[:] = [c for c in self.carros_ativos if -200 <= c.x <= LARGURA + 200]
-        self.troncos_ativos[:] = [t for t in self.troncos_ativos if -200 <= t.x <= LARGURA + 200]
-        self.powerups_ativos[:] = [p for p in self.powerups_ativos if not p.coletado]
+        # ==========================================
+        # RESOLUÇÃO DO MEMORY LEAK MASSIVO
+        # ==========================================
+        # MOTIVO TÉCNICO: A câmera sobe (valores negativos). Qualquer linha maior que o limite visual ficou para trás.
+        # Varremos todas as listas de entidades e estruturas de dados e as purgamos da RAM.
+        linha_limite = int((self.camera_y + ALTURA) // TAMANHO_TILE) + SAFE_ZONE_LINHAS + 2
+
+        self.carros_ativos[:] = [c for c in self.carros_ativos if
+                                 -200 <= c.x <= LARGURA + 200 and c.linha <= linha_limite]
+        self.troncos_ativos[:] = [t for t in self.troncos_ativos if
+                                  -200 <= t.x <= LARGURA + 200 and t.linha <= linha_limite]
+        self.powerups_ativos[:] = [p for p in self.powerups_ativos if
+                                   not p.coletado and (p.wy // TAMANHO_TILE) <= linha_limite]
         self.fumacas_ativas[:] = [f for f in self.fumacas_ativas if not f.expirou(agora)]
+
+        self.arvores_ativas[:] = [a for a in self.arvores_ativas if a.linha <= linha_limite]
+        self.vitorias_ativas[:] = [v for v in self.vitorias_ativas if v.linha <= linha_limite]
+
+        # Limpeza do dicionário procedural
+        chaves_remover = [l for l in self.tile_map if l > linha_limite]
+        for l in chaves_remover:
+            del self.tile_map[l]
+            if l in self.bioma_por_linha:
+                del self.bioma_por_linha[l]
+            if l in self.lane_data:
+                del self.lane_data[l]
 
     def check_death(self, player, agora):
         if agora < player.graca_ate:
@@ -288,8 +312,16 @@ class World:
             if not player.tem_escudo:
                 self.particles.append(Particle(player.wx + 24, player.wy + 24, 0, 0, (255, 100, 0), 600, 20))
         elif tipo == TIPO_RIO:
-            em_vitoria = any(v.rect_mundo().colliderect(player.world_rect()) for v in self.vitorias_ativas if
-                             v.linha == int(player.wy // TAMANHO_TILE))
+            player_coluna = int(player.wx // TAMANHO_TILE)
+            player_linha = int(player.wy // TAMANHO_TILE)
+
+            # Ignora hitboxes animadas e verifica a matemática cravada da grid
+            em_vitoria = any(
+                int(v.wx // TAMANHO_TILE) == player_coluna
+                for v in self.vitorias_ativas
+                if v.linha == player_linha
+            )
+
             if player.tronco_atual is None and not em_vitoria:
                 golpe_fatal = True
                 causa = "afogado"
@@ -333,17 +365,12 @@ class World:
             sy = int(l * TAMANHO_TILE - self.camera_y)
             dados, tipo = self.gerar_tile(l, score)
 
-            # Sempre avalia o bioma atual da linha para o jogo saber a hora de transicionar
             self.fixar_bioma_linha(l, score)
 
-            if tipo == TIPO_ESTRADA:
-                if dados:  # dados é a imagem direta
-                    surface.blit(dados, (0, sy))
-            else:
-                if dados:  # dados é o array de tiles
-                    for col, tile_img in enumerate(dados):
-                        if tile_img:
-                            surface.blit(tile_img, (col * TAMANHO_TILE, sy))
+            if dados:
+                for col, tile_img in enumerate(dados):
+                    if tile_img:
+                        surface.blit(tile_img, (col * TAMANHO_TILE, sy))
 
         # 2. Desenha transições de chão por cima do solo normal
         self.draw_biome_transitions(surface)
