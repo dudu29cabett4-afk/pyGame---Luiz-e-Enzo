@@ -148,7 +148,11 @@ class Game:
     def start_game(self, player_name):
         self.current_player = player_name
         self.world = World()
-        self.player = Player(self.world)
+
+        # Sorteia a cor da skin a cada nova tentativa!
+        skin_sorteada = random.choice(["azul", "verde", "vermelho"])
+        self.player = Player(self.world, cor_skin=skin_sorteada)
+
         self.world.camera_y = self.player.wy - PLAYER_ALVO_Y
         self.state = ESTADO_JOGANDO
         self.match_start_time = pygame.time.get_ticks()

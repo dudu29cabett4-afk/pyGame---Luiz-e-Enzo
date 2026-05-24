@@ -93,12 +93,16 @@ class Lilypad:
 
 
 class Player:
-    def __init__(self, world):
+    def __init__(self, world, cor_skin="verde"):
         self.world = world
         self.linha = int(PLAYER_ALVO_Y // TAMANHO_TILE)
         self.wx = float((LARGURA // TAMANHO_TILE // 2) * TAMANHO_TILE)
         self.wy = float(self.linha * TAMANHO_TILE)
-        self.imagem = assets.images['p_baixo']
+
+        # Carrega o dicionário com as 4 direções da cor sorteada
+        self.skin = assets.images['personagens'].get(cor_skin, assets.images['personagens']['verde'])
+        self.imagem = self.skin['frente']
+
         self.input_buffer = []
         self.score = 0
         self.linha_recorde = self.linha
@@ -131,20 +135,21 @@ class Player:
         old_wx, old_wy = self.wx, self.wy
         novo_wx, novo_wy = self.wx, self.wy
 
+        # Mapeamento com as novas chaves de sprites
         if key == pygame.K_w:
             novo_wy -= TAMANHO_TILE
-            self.imagem = assets.images['p_cima']
+            self.imagem = self.skin['costas']
             novo_wx = round(novo_wx / TAMANHO_TILE) * TAMANHO_TILE
         elif key == pygame.K_s:
             novo_wy += TAMANHO_TILE
-            self.imagem = assets.images['p_baixo']
+            self.imagem = self.skin['frente']
             novo_wx = round(novo_wx / TAMANHO_TILE) * TAMANHO_TILE
         elif key == pygame.K_a:
             novo_wx -= TAMANHO_TILE
-            self.imagem = assets.images['p_esq']
+            self.imagem = self.skin['esquerda']
         elif key == pygame.K_d:
             novo_wx += TAMANHO_TILE
-            self.imagem = assets.images['p_dir']
+            self.imagem = self.skin['direita']
 
         test_rect = pygame.Rect(int(novo_wx) + 8, int(novo_wy) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
 
@@ -166,9 +171,6 @@ class Player:
                 tipo = self.world.gerar_tile(nova_linha, self.score)[1]
                 bioma = self.world.fixar_bioma_linha(nova_linha, self.score)
 
-                # ==========================================
-                # LÓGICA DE ÁUDIO DE PASSOS (ATUALIZADA)
-                # ==========================================
                 som_tocar = None
                 if tipo == TIPO_GRAMA:
                     if bioma == "floresta":
