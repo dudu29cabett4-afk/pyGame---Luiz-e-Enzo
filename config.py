@@ -20,7 +20,9 @@ ARVORE_CHANCE_EXTRA_SCORE = 2000
 POWERUP_CHANCE_SPAWN = 0.05
 
 TRONCO_SLOTS_OPCOES = [2]
-BIOMAS = ["grama", "areia", "gelo"]
+
+# --- NOVA ORDEM DE BIOMAS ---
+BIOMAS = ["floresta", "deserto", "urbano"]
 CICLO_BIOMA_DURACAO = 50
 
 POWERUP_XP2_DURACAO_MS = 8000
@@ -39,14 +41,14 @@ ESTADO_OPTIONS = 5
 ESTADO_CONTROLS = 6
 ESTADO_LEADERBOARD = 7
 
-SCORE_DIFICULDADE_MAX = 200 # Pontuação onde os obstáculos atingem velocidade/densidade máxima
+SCORE_DIFICULDADE_MAX = 200
 
 # Breakpoints e Pesos de Geração (Grama, Estrada, Rio)
 BREAKPOINT_FASE2 = 100
 BREAKPOINT_FASE3 = 200
-PESOS_GRID_FASE1 = [70, 20, 10] # Início: Muito mato, pouca rua, zero rios
-PESOS_GRID_FASE2 = [45, 35, 20] # Meio: Balanceado
-PESOS_GRID_FASE3 = [30, 45, 25] # Fim: Caos urbano e muita água
+PESOS_GRID_FASE1 = [70, 20, 10]
+PESOS_GRID_FASE2 = [45, 35, 20]
+PESOS_GRID_FASE3 = [30, 45, 25]
 
 # Velocidades (Min, Max) base -> escalam até -> (Min, Max) no teto de dificuldade
 CARRO_VEL_BASE = (3.5, 6.0)
