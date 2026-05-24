@@ -27,12 +27,14 @@ def load_save():
                 if "settings" not in data:
                     data["settings"] = default_settings.copy()
                 else:
-                    # Garante que todas as novas chaves existam mesmo se o cara já tinha "settings"
                     for k, v in default_settings.items():
                         if k not in data["settings"]:
                             data["settings"][k] = v
+                for pdata in data["players"].values():
+                    if "cor" not in pdata:
+                        pdata["cor"] = "verde"
                 return data
-        except:
+        except (json.JSONDecodeError, OSError, KeyError, TypeError):
             pass
     return default_data
 
@@ -41,7 +43,7 @@ def save_game(data):
     try:
         with open(SAVE_FILE, 'w') as f:
             json.dump(data, f)
-    except:
+    except OSError:
         pass
 
 
@@ -56,27 +58,3 @@ def draw_text_shadow(surface, font, text, color, pos, shadow_color=(0, 0, 0), of
 
     surface.blit(t_shadow, (rect.x + offset, rect.y + offset))
     surface.blit(t_main, rect)
-
-
-def draw_text_outline(surface, font, text, color, pos, outline_color=(0, 0, 0), outline=1, anchor="center", alpha=None):
-    """Desenha texto com contorno nítido em volta, sem mudar o layout do restante."""
-    base = font.render(text, True, color)
-    outline_surf = font.render(text, True, outline_color)
-    rect = base.get_rect()
-    if anchor == "center":
-        rect.center = pos
-    elif anchor == "topleft":
-        rect.topleft = pos
-
-    if alpha is not None:
-        base.set_alpha(alpha)
-        outline_surf.set_alpha(alpha)
-
-    if outline > 0:
-        for ox in range(-outline, outline + 1):
-            for oy in range(-outline, outline + 1):
-                if ox == 0 and oy == 0:
-                    continue
-                surface.blit(outline_surf, (rect.x + ox, rect.y + oy))
-
-    surface.blit(base, rect)

@@ -10,8 +10,6 @@ class Particle:
     def __init__(self, x, y, vx, vy, color, duration, radius):
         self.x, self.y, self.vx, self.vy, self.color, self.duration, self.radius = x, y, vx, vy, color, duration, radius
         self.born = pygame.time.get_ticks()
-
-        # Cache da surface para evitar alocação no draw
         max_r = int(self.radius * 2)
         self.surf = pygame.Surface((max_r * 2, max_r * 2), pygame.SRCALPHA)
 
@@ -21,12 +19,12 @@ class Particle:
 
     def draw(self, surface, camera_y, agora):
         age = agora - self.born
-        if age > self.duration: return False
+        if age > self.duration:
+            return False
         frac = 1 - (age / self.duration)
         alpha = int(255 * frac)
         r = int(self.radius * (1 + (1 - frac)))
-
-        self.surf.fill((0, 0, 0, 0))  # Limpa o frame anterior
+        self.surf.fill((0, 0, 0, 0))
         pygame.draw.circle(self.surf, (*self.color[:3], alpha), (r, r), r)
         surface.blit(self.surf, (int(self.x) - r, int(self.y - camera_y) - r))
         return True
@@ -36,8 +34,6 @@ class Fumaca:
     def __init__(self, wx, wy, vx, vy, nascida_em):
         self.wx, self.wy, self.vx, self.vy, self.nascida_em = wx, wy, vx, vy, nascida_em
         self.duracao, self.raio = random.randint(450, 700), random.randint(4, 6)
-
-        # Cache da surface
         max_r = self.raio + 5
         self.surf = pygame.Surface((max_r * 4, max_r * 4), pygame.SRCALPHA)
 
@@ -52,7 +48,6 @@ class Fumaca:
             if -30 <= sy <= ALTURA + 30:
                 raio = int(self.raio + frac * 5)
                 alpha = int(140 * (1.0 - frac))
-
                 self.surf.fill((0, 0, 0, 0))
                 pygame.draw.circle(self.surf, (210, 210, 210, alpha), (raio * 2, raio * 2), raio)
                 pygame.draw.circle(self.surf, (240, 240, 240, max(0, alpha - 40)), (raio * 2 - 2, raio * 2 - 2),
@@ -65,8 +60,6 @@ class PowerUp:
 
     def __init__(self, wx, wy, tipo):
         self.wx, self.wy, self.tipo, self.coletado = wx, wy, tipo, False
-
-        # Cache do brilho
         self.glow_surf = pygame.Surface((self.TAMANHO + 16, self.TAMANHO + 16), pygame.SRCALPHA)
         glow_cor = (255, 190, 70) if self.tipo == "xp2" else (255, 230, 80)
         pygame.draw.circle(self.glow_surf, glow_cor, (self.TAMANHO // 2 + 8, self.TAMANHO // 2 + 8),
@@ -77,14 +70,14 @@ class PowerUp:
         return pygame.Rect(int(self.wx) + m, int(self.wy) + m, TAMANHO_TILE - m * 2, TAMANHO_TILE - m * 2)
 
     def draw(self, surface, camera_y):
-        if self.coletado: return
+        if self.coletado:
+            return
         sx = int(self.wx) + (TAMANHO_TILE - self.TAMANHO) // 2
         sy = int(self.wy - camera_y) + (TAMANHO_TILE - self.TAMANHO) // 2 - 3
         if -self.TAMANHO <= sy <= ALTURA:
             t = pygame.time.get_ticks()
             alpha = int(120 + 80 * abs((t % 800) / 400.0 - 1))
             icon = assets.images['pu_xp2'] if self.tipo == "xp2" else assets.images['pu_escudo']
-
             self.glow_surf.set_alpha(alpha)
             surface.blit(self.glow_surf, (sx - 8, sy - 8))
             surface.blit(icon, (sx, sy))
@@ -96,15 +89,27 @@ class Lilypad:
         self.wx = float(wx)
         self.wy = float(linha * TAMANHO_TILE)
         self.img = img
+        self.recuo_ate = 0
+        self.recuo_dx = 0.0
+
+    def pisada(self, agora):
+        self.recuo_ate = agora + RECUO_DURACAO_MS
+        self.recuo_dx = float(RECUO_PIXELS)
+
+    def offset_desenho(self, agora):
+        if agora >= self.recuo_ate:
+            return 0.0
+        t = 1.0 - (self.recuo_ate - agora) / RECUO_DURACAO_MS
+        return self.recuo_dx * t
 
     def rect_mundo(self):
         return pygame.Rect(int(self.wx) + 4, int(self.wy) + 4, TAMANHO_TILE - 8, TAMANHO_TILE - 8)
 
-    def draw(self, surface, camera_y):
+    def draw(self, surface, camera_y, agora):
         sy = int(self.wy - camera_y)
-        if -TAMANHO_TILE <= sy <= ALTURA:
-            if self.img:
-                surface.blit(self.img, (int(self.wx), sy))
+        ox = int(self.offset_desenho(agora))
+        if -TAMANHO_TILE <= sy <= ALTURA and self.img:
+            surface.blit(self.img, (int(self.wx) + ox, sy))
 
 
 class Player:
@@ -125,6 +130,7 @@ class Player:
         self.xp2_ate = 0
         self.tronco_atual = None
         self.slot_atual = 0
+        self.lily_col_atual = None
 
         self.anim_start = 0
         self.anim_duracao = 120
@@ -132,7 +138,6 @@ class Player:
         self.visual_offset_y = 0.0
         self.last_move_axis = 'y'
 
-        # Cache das surfaces de UI do player
         self.ind_ativo = pygame.Surface((TAMANHO_TILE - 8, 4), pygame.SRCALPHA)
         self.ind_ativo.fill((255, 255, 100, 160))
         self.ind_inativo = pygame.Surface((TAMANHO_TILE - 8, 4), pygame.SRCALPHA)
@@ -161,13 +166,13 @@ class Player:
             self.input_buffer.append(key)
 
     def process_input(self, agora):
-        if not self.input_buffer: return
+        if not self.input_buffer:
+            return
         key = self.input_buffer.pop(0)
 
         old_wx, old_wy = self.wx, self.wy
         novo_wx, novo_wy = self.wx, self.wy
 
-        # Mapeamento com as novas chaves de sprites
         if key == pygame.K_w:
             novo_wy -= TAMANHO_TILE
             self.imagem = self.skin['costas']
@@ -207,10 +212,12 @@ class Player:
                 if tipo == TIPO_GRAMA:
                     if bioma == "floresta":
                         lista_sons = assets.sons['passos'].get('floresta')
-                        if lista_sons: som_tocar = random.choice(lista_sons)
+                        if lista_sons:
+                            som_tocar = random.choice(lista_sons)
                     elif bioma == "deserto":
                         lista_sons = assets.sons['passos'].get('deserto')
-                        if lista_sons: som_tocar = random.choice(lista_sons)
+                        if lista_sons:
+                            som_tocar = random.choice(lista_sons)
                     elif bioma == "urbano":
                         som_tocar = assets.sons['passos'].get('terra')
                 elif tipo == TIPO_ESTRADA:
@@ -237,7 +244,6 @@ class Player:
             else:
                 self.visual_offset_x = delta_x
                 self.visual_offset_y = delta_y
-
             self.anim_start = agora
 
             nova_linha = int(self.wy // TAMANHO_TILE)
@@ -245,10 +251,24 @@ class Player:
                 self.linha_recorde = nova_linha
                 self.score += 2 if agora < self.xp2_ate else 1
 
+    def _atualizar_lilypad(self, player_linha, agora):
+        col = int(self.wx // TAMANHO_TILE)
+        lily = None
+        for v in self.world.vitorias_ativas:
+            if v.linha == player_linha and int(v.wx // TAMANHO_TILE) == col:
+                lily = v
+                break
+        if lily:
+            if self.lily_col_atual != col:
+                lily.pisada(agora)
+            self.lily_col_atual = col
+        else:
+            self.lily_col_atual = None
+
     def update(self, agora):
         self.process_input(agora)
         player_linha = int(self.wy // TAMANHO_TILE)
-        tipo = self.world.gerar_tile(player_linha)[1]
+        tipo = self.world.gerar_tile(player_linha, self.score)[1]
 
         prect_mundo = self.world_rect()
         for pu in self.world.powerups_ativos:
@@ -257,34 +277,42 @@ class Player:
                 if pu.tipo == "escudo":
                     self.tem_escudo = True
                     som = assets.sons['powerups'].get('escudo')
-                    if som: som.play()
+                    if som:
+                        som.play()
                 elif pu.tipo == "xp2":
                     self.xp2_ate = agora + POWERUP_XP2_DURACAO_MS
                     som = assets.sons['powerups'].get('bonus_2x')
-                    if som: som.play()
+                    if som:
+                        som.play()
 
-        if tipo == TIPO_RIO and not self.world.rio_congelado(self.score):
+        if tipo == TIPO_RIO:
             ld = self.world.lane_data.get(player_linha, {})
             if ld.get("modo_rio") == "vitoria_regia":
                 self.tronco_atual = None
-            elif self.tronco_atual:
-                target_x = self.tronco_atual.slot_x_mundo(self.slot_atual)
-                self.wx = clamp(target_x, 0.0, float(LARGURA - TAMANHO_TILE))
+                self._atualizar_lilypad(player_linha, agora)
+            else:
+                self.lily_col_atual = None
+                if self.tronco_atual:
+                    target_x = self.tronco_atual.slot_x_mundo(self.slot_atual)
+                    self.wx = clamp(target_x, 0.0, float(LARGURA - TAMANHO_TILE))
+                    if (self.tronco_atual.x > self.wx + 20 or
+                            self.tronco_atual.x + self.tronco_atual.largura < self.wx + 20):
+                        self.tronco_atual = None
 
-                if self.tronco_atual.x > self.wx + 20 or self.tronco_atual.x + self.tronco_atual.largura < self.wx + 20:
-                    self.tronco_atual = None
-
-            for t in [tr for tr in self.world.troncos_ativos if tr.linha == player_linha]:
-                if t.x <= self.wx < t.x + t.largura:
-                    if self.tronco_atual != t:
-                        som = assets.sons['passos'].get('tronco')
-                        if som: som.play()
-
-                    self.tronco_atual, self.slot_atual = t, t.slot_do_x(self.wx)
-                    self.wx = t.slot_x_mundo(self.slot_atual)
-                    break
+                for t in [tr for tr in self.world.troncos_ativos if tr.linha == player_linha]:
+                    if t.x <= self.wx < t.x + t.largura:
+                        if self.tronco_atual != t:
+                            if t.tipo == "tronco":
+                                som = assets.sons['passos'].get('tronco')
+                                if som:
+                                    som.play()
+                            t.pisada(agora)
+                        self.tronco_atual, self.slot_atual = t, t.slot_do_x(self.wx)
+                        self.wx = t.slot_x_mundo(self.slot_atual)
+                        break
         else:
             self.tronco_atual = None
+            self.lily_col_atual = None
 
     def draw(self, surface, camera_y, agora):
         cur_offset_x = 0
@@ -298,7 +326,6 @@ class Player:
             frac = (1 - t) ** 2
             cur_offset_x = self.visual_offset_x * frac
             cur_offset_y = self.visual_offset_y * frac
-
             deform = 4 * t * (1 - t) * 0.25
             if self.last_move_axis == 'x':
                 scale_x = int(TAMANHO_TILE * (1 + deform))
@@ -306,7 +333,6 @@ class Player:
             else:
                 scale_x = int(TAMANHO_TILE * (1 - deform))
                 scale_y = int(TAMANHO_TILE * (1 + deform))
-
             img_to_draw = pygame.transform.scale(self.imagem, (scale_x, scale_y))
             dx = (TAMANHO_TILE - scale_x) // 2
             dy = (TAMANHO_TILE - scale_y) // 2
@@ -332,7 +358,8 @@ class Player:
             surface.blit(self.aura_escudo, (cx - 8, cy - 8))
             surface.blit(img_to_draw, (px, py))
         elif agora < self.graca_ate:
-            if (agora // 80) % 2 == 0: surface.blit(img_to_draw, (px, py))
+            if (agora // 80) % 2 == 0:
+                surface.blit(img_to_draw, (px, py))
         else:
             surface.blit(img_to_draw, (px, py))
 
@@ -345,10 +372,11 @@ class Carro:
     def update(self, dt):
         self.x += self.velocidade * self.direcao * dt
 
-    def screen_y(self, camera_y): return int(self.linha * TAMANHO_TILE - camera_y)
+    def screen_y(self, camera_y):
+        return int(self.linha * TAMANHO_TILE - camera_y)
 
-    def rect(self, camera_y): return pygame.Rect(int(self.x) + 4, self.screen_y(camera_y) + 4, self.largura - 8,
-                                                 TAMANHO_TILE - 8)
+    def rect(self, camera_y):
+        return pygame.Rect(int(self.x) + 4, self.screen_y(camera_y) + 4, self.largura - 8, TAMANHO_TILE - 8)
 
 
 class Tronco:
@@ -360,16 +388,35 @@ class Tronco:
         self.num_slots = num_slots
         self.largura = num_slots * TAMANHO_TILE
         self.tipo = tipo
+        self.recuo_ate = 0
+        self.recuo_dx = 0.0
+        self.img = self._montar_superficie()
 
-        if tipo == "crocodilo":
-            base_img = assets.images['rios']['jacare'] if direcao == 1 else assets.images['rios']['jacare_flip']
+    def _montar_superficie(self):
+        surf = pygame.Surface((self.largura, TAMANHO_TILE), pygame.SRCALPHA)
+        if self.tipo == "crocodilo":
+            base = assets.images['rios']['jacare'] if self.direcao == 1 else assets.images['rios']['jacare_flip']
+            seg_w = assets.images['rios'].get('jacare_w', TAMANHO_TILE)
+            y_off = max(0, (TAMANHO_TILE - base.get_height()) // 2)
+            px = 0
+            while px < self.largura:
+                surf.blit(base, (px, y_off))
+                px += seg_w
         else:
-            base_img = assets.images['rios']['tronco']
+            base = assets.images['rios']['tronco']
+            for px in range(0, self.largura, TAMANHO_TILE):
+                surf.blit(base, (px, 0))
+        return surf
 
-        self.img = pygame.Surface((self.largura, TAMANHO_TILE), pygame.SRCALPHA)
-        # Ladrilhar (Tiling) a textura base para não esticar
-        for px in range(0, self.largura, TAMANHO_TILE):
-            self.img.blit(base_img, (px, 0))
+    def pisada(self, agora):
+        self.recuo_ate = agora + RECUO_DURACAO_MS
+        self.recuo_dx = -float(RECUO_PIXELS) if self.direcao == 1 else float(RECUO_PIXELS)
+
+    def offset_desenho(self, agora):
+        if agora >= self.recuo_ate:
+            return 0.0
+        t = 1.0 - (self.recuo_ate - agora) / RECUO_DURACAO_MS
+        return self.recuo_dx * t
 
     def update(self, dt):
         self.x += self.velocidade * self.direcao * dt
@@ -379,6 +426,11 @@ class Tronco:
 
     def slot_do_x(self, wx):
         return max(0, min(self.num_slots - 1, round((wx - self.x) / TAMANHO_TILE)))
+
+    def draw(self, surface, camera_y, agora):
+        ox = int(self.offset_desenho(agora))
+        sy = int(self.linha * TAMANHO_TILE - camera_y)
+        surface.blit(self.img, (int(self.x) + ox, sy))
 
 
 class Obstaculo:
@@ -392,12 +444,11 @@ class Obstaculo:
     def world_rect(self):
         return pygame.Rect(int(self.wx) + 8, int(self.wy) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
 
-    def draw(self, surface, camera_y, agora, bioma=None):
+    def draw(self, surface, camera_y, agora):
         sy = int(self.wy - camera_y)
         if -TAMANHO_TILE <= sy <= ALTURA:
             tempo = max(0, agora - self.nascida_em)
             alpha = int(255 * (tempo / ARVORE_APARECIMENTO_MS)) if tempo < ARVORE_APARECIMENTO_MS else 255
-
             if self.img:
                 if alpha < 255:
                     surf = self.img.copy()

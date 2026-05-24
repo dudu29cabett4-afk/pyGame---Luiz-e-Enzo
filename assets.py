@@ -47,15 +47,21 @@ def load_all_assets():
     fonts['score'] = pygame.font.SysFont("arial", 22, bold=True)
     fonts['kbd'] = pygame.font.SysFont("arial", 12, bold=True)
     fonts['hud'] = pygame.font.SysFont("arial", 18, bold=True)
-    fonts['titulo'] = pygame.font.SysFont("arial", 16)
 
-    def load_img(path, scale=None):
+    def load_img(path, scale=None, pixel_art=False):
         try:
-            img = pygame.image.load(os.path.join(base, path)).convert_alpha()
+            img = pygame.image.load(os.path.join(base, path))
+            try:
+                img = img.convert_alpha()
+            except pygame.error:
+                img = img.convert()
             if scale:
-                img = pygame.transform.scale(img, scale)
+                if pixel_art:
+                    img = pygame.transform.scale(img, scale)
+                else:
+                    img = pygame.transform.scale(img, scale)
             return img
-        except Exception:
+        except (pygame.error, OSError):
             surf = pygame.Surface(scale if scale else (TAMANHO_TILE, TAMANHO_TILE))
             surf.fill((255, 0, 255))
             return surf
@@ -65,19 +71,16 @@ def load_all_assets():
             s = pygame.mixer.Sound(os.path.join(base, path))
             s.set_volume(volume)
             return s
-        except Exception:
+        except (pygame.error, OSError):
             return None
 
     def load_folder_as_list(folder_path, scale=None):
-        """Carrega todas as imagens PNG de uma pasta em uma lista."""
         full_path = os.path.join(base, folder_path)
         loaded = []
         if os.path.exists(full_path):
             for f in sorted(os.listdir(full_path)):
                 if f.lower().endswith('.png'):
-                    loaded.append(load_img(os.path.join(folder_path, f), scale))
-
-        # Fallback se a pasta estiver vazia ou não existir
+                    loaded.append(load_img(os.path.join(folder_path, f), scale, pixel_art=True))
         if not loaded:
             surf = pygame.Surface(scale if scale else (TAMANHO_TILE, TAMANHO_TILE))
             surf.fill((255, 0, 255))
@@ -85,19 +88,16 @@ def load_all_assets():
         return loaded
 
     def load_prefix_sounds(folder_path, prefix):
-        """Carrega todos os MP3 de uma pasta que começam com o prefixo em uma lista."""
         full_path = os.path.join(base, folder_path)
         loaded = []
         if os.path.exists(full_path):
             for f in sorted(os.listdir(full_path)):
                 if f.startswith(prefix) and f.lower().endswith('.mp3'):
                     s = load_sound(os.path.join(folder_path, f))
-                    if s: loaded.append(s)
+                    if s:
+                        loaded.append(s)
         return loaded
 
-    # =========================================================
-    # CARREGAMENTO DOS BIOMAS (IMAGENS)
-    # =========================================================
     images['biomas'] = {}
     for bioma in BIOMAS:
         images['biomas'][bioma] = {
@@ -105,64 +105,53 @@ def load_all_assets():
             'aguas': load_folder_as_list(f"imagens/biomas/{bioma}/aguas", (TAMANHO_TILE, TAMANHO_TILE)),
             'obstaculos': load_folder_as_list(f"imagens/biomas/{bioma}/obstaculos", (TAMANHO_TILE, TAMANHO_TILE)),
         }
-
-        # A transição é uma imagem principal de banda inteira
-        trans_lista = load_folder_as_list(f"imagens/biomas/{bioma}/transicao")
+        trans_lista = load_folder_as_list(f"imagens/biomas/{bioma}/transicao", (LARGURA, TAMANHO_TILE))
         images['biomas'][bioma]['transicao'] = trans_lista[0] if trans_lista else None
 
-    # =========================================================
-    # CARREGAMENTO DE ENTIDADES GLOBAIS (IMAGENS)
-    # =========================================================
-    # Estradas (Tamanho LARGURA x TAMANHO_TILE)
     images['estradas'] = load_folder_as_list("imagens/estradas", (TAMANHO_TILE, TAMANHO_TILE))
-
-    # Lilypads
     images['lilypads'] = load_folder_as_list("imagens/lilypads", (TAMANHO_TILE, TAMANHO_TILE))
 
-    # Carros
     carros_crus = load_folder_as_list("imagens/carros")
     images['carros_r'] = [escalar_carro(c) for c in carros_crus]
     images['carros_l'] = [pygame.transform.flip(c, True, False) for c in images['carros_r']]
 
-    # Personagens
     images['personagens'] = {}
-    for cor in ["azul", "verde", "vermelho"]:
+    for cor in CORES_RAPOSA:
         images['personagens'][cor] = {
-            'frente': load_img(f"imagens/personagens/{cor}/frente.png", (TAMANHO_TILE, TAMANHO_TILE)),
-            'costas': load_img(f"imagens/personagens/{cor}/costas.png", (TAMANHO_TILE, TAMANHO_TILE)),
-            'esquerda': load_img(f"imagens/personagens/{cor}/esquerda.png", (TAMANHO_TILE, TAMANHO_TILE)),
-            'direita': load_img(f"imagens/personagens/{cor}/direita.png", (TAMANHO_TILE, TAMANHO_TILE)),
+            'frente': load_img(f"imagens/personagens/{cor}/frente.png", (TAMANHO_TILE, TAMANHO_TILE), pixel_art=True),
+            'costas': load_img(f"imagens/personagens/{cor}/costas.png", (TAMANHO_TILE, TAMANHO_TILE), pixel_art=True),
+            'esquerda': load_img(f"imagens/personagens/{cor}/esquerda.png", (TAMANHO_TILE, TAMANHO_TILE), pixel_art=True),
+            'direita': load_img(f"imagens/personagens/{cor}/direita.png", (TAMANHO_TILE, TAMANHO_TILE), pixel_art=True),
         }
 
-    # Elementos do Rio
+    jacare_img = load_img("imagens/rios/jacaré.png", None, pixel_art=True)
+    jacare_h = TAMANHO_TILE
+    jacare_w = max(TAMANHO_TILE, int(jacare_img.get_width() * (jacare_h / jacare_img.get_height())))
+    jacare_scaled = pygame.transform.scale(jacare_img, (jacare_w, jacare_h))
     images['rios'] = {
-        'jacare': load_img("imagens/rios/jacaré.png", (86, 65)),
-        'jacare_flip': pygame.transform.flip(load_img("imagens/rios/jacaré.png", (86, 65)), True, False),
-        'tronco': load_img("imagens/rios/tronco.png", (TAMANHO_TILE, TAMANHO_TILE))
+        'jacare': jacare_scaled,
+        'jacare_flip': pygame.transform.flip(jacare_scaled, True, False),
+        'jacare_w': jacare_w,
+        'tronco': load_img("imagens/rios/tronco.png", (TAMANHO_TILE, TAMANHO_TILE), pixel_art=True),
     }
 
-    # Telas de Morte e Fundo
     images['telas'] = {
         'fullscreen': load_img("imagens/telas/fullscreen.png", (LARGURA, ALTURA)),
         'fundomenu': load_img("imagens/telas/fundomenu.png", (LARGURA, ALTURA)),
         'morte_afogado': load_img("imagens/telas/mortes/morte_afogado.png", (LARGURA, ALTURA)),
         'morte_borda': load_img("imagens/telas/mortes/morte_borda.png", (LARGURA, ALTURA)),
-        'morte_carro': load_img("imagens/telas/mortes/morte_carro.png", (LARGURA, ALTURA))
+        'morte_carro': load_img("imagens/telas/mortes/morte_carro.png", (LARGURA, ALTURA)),
+        'morte_jacare': load_img("imagens/telas/mortes/morte_jacare.png", (LARGURA, ALTURA)),
     }
 
-    # Powerups programáticos (mantidos conforme o design original)
     images['pu_escudo'] = _criar_pu_escudo()
     images['pu_xp2'] = _criar_pu_xp2()
 
-    # =========================================================
-    # CARREGAMENTO DE ÁUDIO (SONS)
-    # =========================================================
     sons['passos'] = {
         'agua': load_sound("sons/passos/passos_agua.mp3"),
         'rua': load_sound("sons/passos/passos_rua.mp3"),
         'terra': load_sound("sons/passos/passos_terra.mp3"),
         'tronco': load_sound("sons/passos/passos_tronco.mp3"),
-        # Listas com múltiplas variações
         'deserto': load_prefix_sounds("sons/passos", "passos_deserto"),
         'floresta': load_prefix_sounds("sons/passos", "passos_floresta"),
     }
@@ -174,10 +163,8 @@ def load_all_assets():
     }
 
     sons['ambiente'] = {
-        # Salvamos apenas o caminho para fazer streaming no main.py e não estourar a RAM
         'jogo_path': os.path.join(base, "sons/ambiente/jogo.mp3"),
         'menu_path': os.path.join(base, "sons/ambiente/menu.mp3"),
-        # Sons curtos continuam na RAM para tocarem em paralelo
         'passaros_floresta': load_sound("sons/ambiente/passaros_floresta.mp3", 0.3),
         'vento_urbano': load_sound("sons/ambiente/vento_urbano.mp3", 0.3),
     }
@@ -192,4 +179,5 @@ def load_all_assets():
         'agua': load_sound("sons/mortes/morte_agua.mp3"),
         'borda': load_sound("sons/mortes/morte_borda.mp3"),
         'carro': load_sound("sons/mortes/morte_carro.mp3"),
+        'jacare': load_sound("sons/mortes/morte_jacare.mp3"),
     }
