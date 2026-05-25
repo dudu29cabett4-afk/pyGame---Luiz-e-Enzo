@@ -149,9 +149,10 @@ class Player:
 
     def rect(self, camera_y):
         return pygame.Rect(
-            int(self.wx + self.visual_offset_x) + 8,
-            int(self.wy + self.visual_offset_y - camera_y) + 8,
-            TAMANHO_TILE - 16, TAMANHO_TILE - 16
+            int(self.wx + self.visual_offset_x) + HITBOX_PLAYER_INSET,
+            int(self.wy + self.visual_offset_y - camera_y) + HITBOX_PLAYER_INSET,
+            TAMANHO_TILE - HITBOX_PLAYER_INSET * 2,
+            TAMANHO_TILE - HITBOX_PLAYER_INSET * 2
         )
 
     def world_rect(self):
@@ -401,7 +402,12 @@ class Carro:
         return int(self.linha * TAMANHO_TILE - camera_y)
 
     def rect(self, camera_y):
-        return pygame.Rect(int(self.x) + 4, self.screen_y(camera_y) + 4, self.largura - 8, TAMANHO_TILE - 8)
+        return pygame.Rect(
+            int(self.x) + HITBOX_CARRO_X_INSET,
+            self.screen_y(camera_y) + HITBOX_CARRO_Y_INSET,
+            self.largura - HITBOX_CARRO_X_INSET * 2,
+            TAMANHO_TILE - HITBOX_CARRO_Y_INSET * 2
+        )
 
 
 class Tronco:
