@@ -66,6 +66,22 @@ claude, eu quero que vc refaca a parte das arvores aleatorias, mudando os sprite
 claude, por algum motivo o sistema das vitorias regias nao funciona ainda, quero que quando tiverem rios com 2 ou mais de comprimento, quero que tenha a possibilidade de ao inves de passar troncos, que tenham quadrados verdes que simbolizam as vitorias regias que sao fixas, ou seja, nao se movem com o fluxo do rio, e quando elas aparecem na sessao do rio, nao passem troncos nesta
 ```
 
+Enzo
+```bash
+Claude, esse código é de um jogo estilo Crossy Road. Faça um poder que aparece aleatoriamente no mapa de uma maneira que a pessoa fique imune de morrer por 10 segundos. Além disso, faça com que todos os botões estejam vinculados a uma tecla, então o botão de "Como jogar" vc clica numa tecla pra acessar ele. Faça isso pros botões de Retry e Menu no fim do jogo. Além disso deixe as instruções melhor apresentadas.
+```
+```bash
+Claude,  faça com que o escudo dure por um dano, ele dure até a pessoa colapsar com algo que mataria ela. Ele tem uso único.
+```
+```bash
+Claude, a camera está estática, eu quero que no começo ela fique parada, mas logo depois que o personagem andar a câmera começa a a se movimentar levemente para baixo sozinha, independentemente do personagem,  essa velocidade vai aumentando conforme a pessoa vai avançando no jogo
+```
+```bash
+Claude, no deserto ao invés de troncos, faça aparecer crocodilos. Eles teriam a mesma dinâmica do tronco, só que a aparência de jacaré. Mande oq eu teria que mudar.
+```
+```bash
+Claude, o bioma está mudando do nada. Tipo o bioma tem que mudar antes dela entrar na tela. A partir do momento q ele está na tela ele não deve ser alterado. Mande como soluciono isso.
+```
 
 **ChatGPT GPT 5.5**
 
@@ -80,6 +96,13 @@ chat quero que vc crie algumas arvores que fiquem nas partes de grama verde nas 
 chat como faco para adicionar uma pequana animacao de fumaca saindo da roda dos carrinhos
 ```
 
+Enzo
+```bash
+Chat quero esse som para cada vez que um personagem der um passo na grama, como faço isso? Oq tenho que colocar e em que lugares tenho que colocar
+```
+```bash
+Chat, agr quero um som para quando ele pisar em um tronco de madeira, aqueles q ficam passando no rio
+```
 
 Murilo
 ```bash
