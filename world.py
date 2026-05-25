@@ -367,6 +367,9 @@ class World:
         if py_screen >= ALTURA or py_screen < -TAMANHO_TILE:
             return True, "borda"
 
+        if agora < player.graca_ate:
+            return False, None
+
         prect = player.rect(self.camera_y)
         tipo = self.gerar_tile(int(player.wy // TAMANHO_TILE), player.score)[1]
 
@@ -400,7 +403,7 @@ class World:
         if golpe_fatal:
             if player.tem_escudo:
                 player.tem_escudo = False
-                player.graca_ate = agora + 400
+                player.graca_ate = agora + 1000
                 return False, None
             return True, causa
 
