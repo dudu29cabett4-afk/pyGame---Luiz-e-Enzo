@@ -1,10 +1,15 @@
 # ui.py
+# Este arquivo consolida todas as funções puramente estéticas da User Interface (UI),
+# evitando que a classe `Game` no main.py fique cheia de código apenas de "desenhar caixas".
+
 import math
 import pygame
 from config import *
 import assets
 from utils import draw_text_shadow, clamp
 
+# Cache em dicionário para não precisarmos ficar criando a superfície escurecida várias vezes,
+# poupando processamento valioso.
 _overlay_cache = {}
 
 MENU_BTN_W = 200
@@ -20,6 +25,7 @@ OPT_Y_BACK = 320
 
 
 def get_overlay(alpha):
+    # Retorna uma película semitransparente usada pra dar fundos aos painéis ou menus (efeito fade preto).
     if alpha not in _overlay_cache:
         surf = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
         surf.fill((0, 0, 0, alpha))
@@ -28,6 +34,7 @@ def get_overlay(alpha):
 
 
 def draw_button(surface, rect, label, hover, font_key='botao'):
+    # Uma maneira unificada de desenhar botões customizados por t0do o jogo.
     cor = (180, 70, 10) if hover else (30, 30, 60)
     pygame.draw.rect(surface, cor, rect, border_radius=8)
     pygame.draw.rect(surface, (255, 200, 50), rect, 2, border_radius=8)
@@ -41,6 +48,7 @@ def slider_thumb_x(x, w, value):
 
 
 def slider_hit_test(x, y, w, h, value, mx, my):
+    # Função matemática que checa o raio (pitágoras puro) do círculo do slider do volume e a sua linha para detectar colisão de mouse.
     thumb_x = slider_thumb_x(x, w, value)
     thumb_y = y + h // 2
     track = pygame.Rect(x, y - 14, w, h + 28)
@@ -55,6 +63,7 @@ def slider_value_from_mouse(x, w, mx):
 
 
 def draw_slider(surface, x, y, w, h, value, label):
+    # Constrói visualmente o Slider (barrinha de arrastar e regular som)
     draw_text_shadow(surface, assets.fonts['hud'], label, (255, 255, 255), (x + w // 2, y - 20))
     track_rect = pygame.Rect(x, y, w, h)
     pygame.draw.rect(surface, (30, 30, 50), track_rect, border_radius=h // 2)
@@ -113,6 +122,7 @@ def draw_hud(surface, player_name, score, high_score):
 
 
 def draw_danger_zone(surface, camera_y, player_wy):
+    # A área vermelha da câmera que se aproxima. Avisa que "se não andar rápido, você perde".
     dist = ALTURA - (player_wy - camera_y)
     alpha = min(150, max(0, int(255 - (dist * 1.5))))
     if alpha > 0:
@@ -192,6 +202,9 @@ def draw_load_player_screen(surface, players_dict, mouse_pos, scroll_y, pending_
     view_rect = pygame.Rect(LARGURA // 2 - 180, 120, 360, 420)
     pygame.draw.rect(surface, (15, 18, 42), view_rect, border_radius=10)
     pygame.draw.rect(surface, (100, 100, 150), view_rect, 2, border_radius=10)
+
+    # O mét0do 'set_clip' define uma "máscara" delimitadora. Tudo desenhado aqui ficará escondido se ultrapassar
+    # os limites da caixa (view_rect). Uma técnica excelente para menus de scroll.
     surface.set_clip(view_rect)
     players = list(players_dict.keys())[::-1]
     start_y = 135 + scroll_y
@@ -223,6 +236,7 @@ def draw_load_player_screen(surface, players_dict, mouse_pos, scroll_y, pending_
             play_buttons[p] = btn_play
             delete_buttons[p] = btn_del
             start_y += 60
+    # Desliga a máscara permitindo o restante da tela desenhar normalmente
     surface.set_clip(None)
     btn_back = pygame.Rect(LARGURA // 2 - 80, ALTURA - 80, 160, 40)
     draw_button(surface, btn_back, "VOLTAR", btn_back.collidepoint(mouse_pos))

@@ -1,4 +1,8 @@
 # main.py
+# O ponto de entrada principal do jogo. Onde tudo ganha vida!
+# Gerencia a janela inicial de Pygame, o ciclo principal (Loop Infinito) do jogo, a captura
+# de cliques, eventos do teclado e as navegações pelo menu através do padrão "Máquina de Estados".
+
 import pygame
 import sys
 import math
@@ -22,24 +26,30 @@ from ui import (
 
 class Game:
     def __init__(self):
+        # Inicia o backend fundamental da biblioteca SDL/Pygame
         pygame.init()
         try:
+            # Sistema de Áudio Pygame
             pygame.mixer.init()
         except pygame.error:
             pass
         self.save_data = load_save()
         self.settings = self.save_data["settings"]
 
+        # Define a Surface (Superfície Virtual) padrão onde o jogo vai desenhar seus elementos gráficos
         self.game_surface = pygame.Surface((LARGURA, ALTURA))
         self.window = None
         self.apply_display_settings()
 
         pygame.display.set_caption("Cruze a Quatá!")
+        # O Clock regula os quadros por segundo e as lógicas de tempo de execução (FPS/Timers).
         self.clock = pygame.time.Clock()
 
+        # Chama as rotinas do Assets para transferir imagens e sons do HD para a memória RAM.
         assets.load_all_assets()
         self.apply_audio_volumes()
 
+        # O estado em que o jogo começa no main() define o menu principal inicial
         self.state = ESTADO_MENU
         self.world = None
         self.player = None
@@ -73,6 +83,7 @@ class Game:
         self.record_surf_shadow = assets.fonts['botao_grande'].render(texto_rec, True, (0, 0, 0))
 
     def apply_display_settings(self):
+        # Trata o preenchimento/escala da tela baseado no JSON (Se modo de tela cheia está True)
         if self.settings.get("fullscreen"):
             info = pygame.display.Info()
             self.window = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
@@ -81,6 +92,8 @@ class Game:
         self._game_rect = pygame.Rect(0, 0, LARGURA, ALTURA)
 
     def get_mapped_mouse(self):
+        # Mapeia o ponteiro do mouse na dimensão verdadeira do jogo, escalonando de forma que
+        # o clique seja preciso quer o usuário esteja em uma TV gigante ou tela pequena de notebook.
         mx, my = pygame.mouse.get_pos()
         r = self._game_rect
         if r.width > 0 and r.height > 0 and (r.width, r.height) != (LARGURA, ALTURA):
@@ -91,6 +104,7 @@ class Game:
         return mx, my
 
     def blit_to_window(self):
+        # Copia da Superfície de Desenho interna para a Janela Visível do Monitor do Computador
         sw, sh = self.window.get_size()
         if self.settings.get("fullscreen") and (sw, sh) != (LARGURA, ALTURA):
             bg = assets.images['telas'].get('fullscreen')
@@ -110,6 +124,8 @@ class Game:
             self._game_rect = pygame.Rect(0, 0, LARGURA, ALTURA)
 
     def request_state(self, new_state, agora, setup_fn=None, kind="menu"):
+        # Uma função central da Máquina de Estados, que impede transições abruptas.
+        # "Pede" para trocar de tela e começa a animação de escurecimento / loading
         if self.transition:
             return
         if new_state == self.state and setup_fn is None:
@@ -123,6 +139,7 @@ class Game:
         self.transition = {"target": new_state, "start": agora, "duration": duracao, "kind": kind}
 
     def _finish_transition(self):
+        # Completa a transição invocando qualquer função de inicialização engatilhada (ex: load data).
         if self._pending_setup:
             self._pending_setup()
             self._pending_setup = None
@@ -138,6 +155,7 @@ class Game:
         return self.transition is not None
 
     def _try_start_slider_drag(self, mouse):
+        # Utilizado no menu para capturar a manipulação de som (Apertar na bolinha e arrastar).
         if slider_hit_test(OPT_SLIDER_X, OPT_Y_VOLUME, OPT_SLIDER_W, OPT_SLIDER_H,
                            self.settings["vol_master"], mouse[0], mouse[1]):
             self.dragging_slider = "vol_master"
@@ -199,6 +217,7 @@ class Game:
             s.play()
 
     def check_hover(self, rects_dict, mouse):
+        # Dispara som ao passar o cursor pela primeira vez numa opção do menu.
         hovered = None
         for name, rect in rects_dict.items():
             if rect.collidepoint(mouse):
@@ -212,6 +231,8 @@ class Game:
             self.last_hover = hovered
 
     def start_game(self, player_name):
+        # Responsabilidade de Zerar todas as instâncias (Novo Jogo).
+        # Instancia novamente as classes da Arquitetura Orientada a Objetos: `World` e `Player`.
         self.current_player = player_name
         self.world = World()
         cor = self.save_data["players"][player_name].get("cor", COR_RAPOSA_PADRAO)
@@ -223,6 +244,7 @@ class Game:
         self.record_banner_time = 0
 
     def _on_player_death(self, agora, cause):
+        # Gerenciamento de status finais, salva disco JSON.
         new_record = self.player.score > self.match_high_score
         if new_record:
             self.save_data["players"][self.current_player]["high_score"] = self.player.score
@@ -252,6 +274,7 @@ class Game:
         self.shake_remaining = 6
 
     def _menu_btn_rects(self):
+        # Retângulos virtuais usados pra checar colisão (cliques) do menu.
         cx = LARGURA // 2 - MENU_BTN_W // 2
         y0 = ALTURA // 2 - 95
         gap = 55
@@ -264,8 +287,11 @@ class Game:
         }
 
     def run(self):
+        # A principal engrenagem que roda continuamente. "Game Loop" clássico de bibliotecas de video-game.
         while True:
+            # Trava o jogo em até 30 Quadros/Frames por segundo no máximo (FPS = 30)
             delta_ms = self.clock.tick(30)
+            # Delta Time: Fundamental para movimentações constantes em máquinas mais fracas ou mais fortes
             dt = delta_ms / 33.333
 
             agora = pygame.time.get_ticks()
@@ -279,6 +305,7 @@ class Game:
             transitioning = self.is_transitioning()
             prog = self.transition_progress(agora)
 
+            # Máquina de estados controlando lógica musical
             if not transitioning:
                 if self.state in [ESTADO_MENU, ESTADO_NEW_PLAYER, ESTADO_LOAD_PLAYER, ESTADO_OPTIONS,
                                   ESTADO_LEADERBOARD]:
@@ -298,6 +325,7 @@ class Game:
                     self.play_track(None)
                     self.play_ambient(None)
 
+            # Sistema de Eventos Pygame. Captura periféricos (Mouse, Teclado) antes de renderizar frame.
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
@@ -456,6 +484,7 @@ class Game:
                                 start_y += 60
 
                 elif self.state == ESTADO_JOGANDO:
+                    # Captura diretos dos movimentos (WASD) ou Menu Escape apenas se está no estado JOGANDO
                     if event.type == pygame.KEYDOWN:
                         if event.key in (pygame.K_ESCAPE, pygame.K_p):
                             self.play_click()
@@ -486,12 +515,14 @@ class Game:
                             self.play_click()
                             self.request_state(ESTADO_MENU, agora)
 
+            # Manipulação de UI - Evento global disparado caso de Sliders
             if self.dragging_slider and pygame.mouse.get_pressed()[0]:
                 self.settings[self.dragging_slider] = slider_value_from_mouse(
                     OPT_SLIDER_X, OPT_SLIDER_W, mouse[0]
                 )
                 self.apply_audio_volumes()
 
+            # "Limpando" o desenho gráfico a cada frame, preenchendo de cor preta, antes de re-desenhar tudo.
             self.game_surface.fill((0, 0, 0))
 
             if self.state == ESTADO_MENU:
@@ -540,7 +571,9 @@ class Game:
                     for k, v in del_btns.items():
                         hover_dict[f"d_{k}"] = v
 
+            # BLOCO DE DESENHO DO JOGO EM CURSO. O "Core" dinâmico real ocorre aqui:
             elif self.state == ESTADO_JOGANDO and not transitioning:
+                # O update cuida do lado da lógica/matemática (O cérebro)
                 self.player.update(agora)
                 self.world.update(self.player, self.player.score, agora, dt)
 
@@ -563,6 +596,7 @@ class Game:
                 if is_dead:
                     self._on_player_death(agora, cause)
                 else:
+                    # O draw cuida do visual. Retrata e transpila t0do o status lógico para tela da GPU (Os músculos/pele)
                     self.world.draw(self.game_surface, self.player.score, agora)
                     hl = pygame.Surface((TAMANHO_TILE, TAMANHO_TILE), pygame.SRCALPHA)
                     pygame.draw.rect(hl, (255, 255, 255, 30), (0, 0, TAMANHO_TILE, TAMANHO_TILE), border_radius=8)
@@ -632,6 +666,7 @@ class Game:
             if not transitioning:
                 self.check_hover(hover_dict, mouse)
 
+            # E finalmente atualiza e envia a montagem para a tela "real" do Pygame Display
             self.blit_to_window()
             pygame.display.flip()
 
@@ -649,7 +684,6 @@ class Game:
             save_game(self.save_data)
             self.request_state(ESTADO_LOAD_PLAYER, agora,
                                lambda: setattr(self, 'scroll_y', 0))
-
 
 if __name__ == "__main__":
     Game().run()

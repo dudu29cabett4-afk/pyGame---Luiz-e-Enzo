@@ -1,4 +1,8 @@
 # assets.py
+# Este arquivo gerencia o carregamento de todos os recursos do jogo:
+# imagens, sons e fontes. O carregamento é feito uma única vez e armazenado em dicionários
+# (images, sons, fonts) na memória RAM do computador, garantindo ótima performance na execução do jogo.
+
 import os
 import pygame
 from config import *
@@ -9,12 +13,16 @@ fonts = {}
 
 
 def escalar_carro(img):
+    # Pega uma imagem retangular de proporções aleatórias e "força" que sua largura
+    # se encaixe na métrica de tamanho "TILE" do jogo sem esticar ou achatar a arte.
     orig_w, orig_h = img.get_size()
     nova_largura = int(orig_w * (TAMANHO_TILE / orig_h))
     return pygame.transform.scale(img, (nova_largura, TAMANHO_TILE))
 
 
 def _criar_pu_escudo():
+    # Uma forma bem avançada de desenhar com Pygame puro: Usamos Polígonos para criar uma
+    # estrela amarela na mão ao invés de usar arquivo .png
     surf = pygame.Surface((36, 36), pygame.SRCALPHA)
     import math
     pontos = []
@@ -40,8 +48,10 @@ def _criar_pu_xp2():
 
 
 def load_all_assets():
+    # Determina dinamicamente em que pasta estamos para abrir arquivos sem "Directory error"
     base = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd()
 
+    # Criação de objetos de Fonte para textos.
     fonts['botao'] = pygame.font.SysFont("arial", 20, bold=True)
     fonts['botao_grande'] = pygame.font.SysFont("arial", 24, bold=True)
     fonts['score'] = pygame.font.SysFont("arial", 22, bold=True)
@@ -49,9 +59,13 @@ def load_all_assets():
     fonts['hud'] = pygame.font.SysFont("arial", 18, bold=True)
 
     def load_img(path, scale=None, pixel_art=False):
+        # Uma função envelope ("wrapper") para Pygame Load, que trata erros graciosamente com Try-Except.
+        # Se você apagar a pasta da imagem sem querer, ela gera um quadrado roxo no lugar
+        # e o seu jogo não vai "crashar".
         try:
             img = pygame.image.load(os.path.join(base, path))
             try:
+                # convert_alpha otimiza em hardware o processamento de canais de cor
                 img = img.convert_alpha()
             except pygame.error:
                 img = img.convert()
@@ -63,7 +77,7 @@ def load_all_assets():
             return img
         except (pygame.error, OSError):
             surf = pygame.Surface(scale if scale else (TAMANHO_TILE, TAMANHO_TILE))
-            surf.fill((255, 0, 255))
+            surf.fill((255, 0, 255)) # Pinta de roxo como alerta visual
             return surf
 
     def load_sound(path, volume=0.5):
@@ -75,6 +89,8 @@ def load_all_assets():
             return None
 
     def load_folder_as_list(folder_path, scale=None):
+        # Abre a pasta e escaneia automaticamente todos as imagens de blocos daquele bioma.
+        # Excelente para adicionar artes rapidamente depois!
         full_path = os.path.join(base, folder_path)
         loaded = []
         if os.path.exists(full_path):
@@ -98,6 +114,7 @@ def load_all_assets():
                         loaded.append(s)
         return loaded
 
+    # Inicialização dos dicionários principais
     images['biomas'] = {}
     for bioma in BIOMAS:
         images['biomas'][bioma] = {
@@ -113,6 +130,7 @@ def load_all_assets():
 
     carros_crus = load_folder_as_list("imagens/carros")
     images['carros_r'] = [escalar_carro(c) for c in carros_crus]
+    # Se temos o Sprite apontando pra direita, apenas invertemos com flip para apontar pra esquerda
     images['carros_l'] = [pygame.transform.flip(c, True, False) for c in images['carros_r']]
 
     images['personagens'] = {}

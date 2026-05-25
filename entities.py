@@ -1,4 +1,7 @@
 # entities.py
+# Aqui ficam isoladas as classes das Entidades: Jogador, Inimigos, Partículas, PowerUps.
+# Cada entidade é um objeto (POO) com estado (posição x, y, velocidade, etc) e comportamento (draw, update).
+
 import pygame
 import random
 import assets
@@ -7,30 +10,36 @@ from utils import clamp
 
 
 class Particle:
+    # Simples objeto que cria um "círculo que desaparece", usado em colisões ou efeitos visuais.
     def __init__(self, x, y, vx, vy, color, duration, radius):
         self.x, self.y, self.vx, self.vy, self.color, self.duration, self.radius = x, y, vx, vy, color, duration, radius
-        self.born = pygame.time.get_ticks()
+        self.born = pygame.time.get_ticks()  # Registra o exato milissegundo de nascimento
         max_r = int(self.radius * 2)
+        # SRCALPHA permite criar superfícies (imagens virtuais) que suportam transparência PNG (Alpha Channel).
         self.surf = pygame.Surface((max_r * 2, max_r * 2), pygame.SRCALPHA)
 
     def update(self, dt):
+        # A movimentação multiplica pela velocidade da partícula "vx" e "vy" vezes o dt (Delta Time).
         self.x += self.vx * dt
         self.y += self.vy * dt
 
     def draw(self, surface, camera_y, agora):
         age = agora - self.born
         if age > self.duration:
-            return False
+            return False  # Morreu, retorna Falso pra lista principal limpar ele
+
+        # O alpha começa em 255 (sólido) e chega a 0 (invisível) progressivamente conforme a partícula envelhece.
         frac = 1 - (age / self.duration)
         alpha = int(255 * frac)
         r = int(self.radius * (1 + (1 - frac)))
-        self.surf.fill((0, 0, 0, 0))
+        self.surf.fill((0, 0, 0, 0))  # Limpa o frame anterior da Surface interna
         pygame.draw.circle(self.surf, (*self.color[:3], alpha), (r, r), r)
         surface.blit(self.surf, (int(self.x) - r, int(self.y - camera_y) - r))
         return True
 
 
 class Fumaca:
+    # Mesma ideia de Partícula, mas programada especificamente para parecer Fumaça de escapamento dos carros.
     def __init__(self, wx, wy, vx, vy, nascida_em):
         self.wx, self.wy, self.vx, self.vy, self.nascida_em = wx, wy, vx, vy, nascida_em
         self.duracao, self.raio = random.randint(450, 700), random.randint(4, 6)
@@ -45,7 +54,7 @@ class Fumaca:
         if 0 <= idade <= self.duracao:
             frac = idade / self.duracao
             sx, sy = int(self.wx + self.vx * idade), int(self.wy + self.vy * idade - camera_y)
-            if -30 <= sy <= ALTURA + 30:
+            if -30 <= sy <= ALTURA + 30:  # Otimização: Apenas desenha na tela se estiver na região da visão da câmera
                 raio = int(self.raio + frac * 5)
                 alpha = int(140 * (1.0 - frac))
                 self.surf.fill((0, 0, 0, 0))
@@ -56,6 +65,8 @@ class Fumaca:
 
 
 class PowerUp:
+    # A classe de Itens que dão bônus à Raposa. Encapsula sua hitbox (retângulo de mundo)
+    # e lógica de brilho "pulsante".
     TAMANHO = 36
 
     def __init__(self, wx, wy, tipo):
@@ -66,6 +77,7 @@ class PowerUp:
                            self.TAMANHO // 2 + 6)
 
     def rect_mundo(self):
+        # Cria a Hitbox, permitindo que a classe `Player` interaja com o PowerUp via pygame.Rect()
         m = 6
         return pygame.Rect(int(self.wx) + m, int(self.wy) + m, TAMANHO_TILE - m * 2, TAMANHO_TILE - m * 2)
 
@@ -76,6 +88,7 @@ class PowerUp:
         sy = int(self.wy - camera_y) + (TAMANHO_TILE - self.TAMANHO) // 2 - 3
         if -self.TAMANHO <= sy <= ALTURA:
             t = pygame.time.get_ticks()
+            # Fórmula de animação para "Glow" (Piscar de claridade) no tempo de jogo.
             alpha = int(120 + 80 * abs((t % 800) / 400.0 - 1))
             icon = assets.images['pu_xp2'] if self.tipo == "xp2" else assets.images['pu_escudo']
             self.glow_surf.set_alpha(alpha)
@@ -84,6 +97,7 @@ class PowerUp:
 
 
 class Lilypad:
+    # A Vitória-Régia no rio.
     def __init__(self, linha, wx, img):
         self.linha = linha
         self.wx = float(wx)
@@ -93,6 +107,7 @@ class Lilypad:
         self.recuo_dx = 0.0
 
     def pisada(self, agora):
+        # Quando a Raposa pisa sobre ela, balança.
         self.recuo_ate = agora + RECUO_DURACAO_MS
         self.recuo_dx = float(RECUO_PIXELS)
 
@@ -113,8 +128,9 @@ class Lilypad:
 
 
 class Player:
+    # A classe mais extensa: controla inteiramente a entidade física que o usuário maneja.
     def __init__(self, world, cor_skin="verde"):
-        self.world = world
+        self.world = world  # Ela salva uma "referência" do mundo principal para extrair colisões
         self.linha = int(PLAYER_ALVO_Y // TAMANHO_TILE)
         self.wx = float((LARGURA // TAMANHO_TILE // 2) * TAMANHO_TILE)
         self.wy = float(self.linha * TAMANHO_TILE)
@@ -122,9 +138,12 @@ class Player:
         self.skin = assets.images['personagens'].get(cor_skin, assets.images['personagens']['verde'])
         self.imagem = self.skin['frente']
 
+        # Fila de comandos: Buffer permite que se apertarmos "W" rápido duas vezes, os movimentos sejam armazenados e lidos.
         self.input_buffer = []
         self.score = 0
         self.linha_recorde = self.linha
+
+        # Status especiais da Raposa:
         self.tem_escudo = False
         self.graca_ate = 0
         self.xp2_ate = 0
@@ -132,6 +151,7 @@ class Player:
         self.slot_atual = 0
         self.lily_col_atual = None
 
+        # Atributos de Animação de Movimento fluido (easing visual) em grid.
         self.anim_start = 0
         self.anim_duracao = 120
         self.visual_offset_x = 0.0
@@ -148,6 +168,7 @@ class Player:
                            TAMANHO_TILE // 2 + 6)
 
     def rect(self, camera_y):
+        # Hitbox (caixa de detecção) baseada na tela do usuário (Screen Space) para interagir com câmera/carros
         return pygame.Rect(
             int(self.wx + self.visual_offset_x) + HITBOX_PLAYER_INSET,
             int(self.wy + self.visual_offset_y - camera_y) + HITBOX_PLAYER_INSET,
@@ -156,6 +177,7 @@ class Player:
         )
 
     def world_rect(self):
+        # Hitbox baseada apenas no Mundo do jogo (World Space), usada para colidir em árvores
         return pygame.Rect(
             int(self.wx + self.visual_offset_x) + 8,
             int(self.wy + self.visual_offset_y) + 8,
@@ -167,6 +189,7 @@ class Player:
             self.input_buffer.append(key)
 
     def _posicao_segura_para_pontuar(self, linha):
+        # Impede o jogador de ganhar ponto se for pular e morrer de imediato no momento em que chega na linha.
         tipo = self.world.gerar_tile(linha, self.score)[1]
         if tipo == TIPO_GRAMA:
             rect = pygame.Rect(int(self.wx) + 8, linha * TAMANHO_TILE + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
@@ -193,6 +216,7 @@ class Player:
         return False
 
     def process_input(self, agora):
+        # Retira o teclado da fila e projeta a nova posição da Raposa.
         if not self.input_buffer:
             return
         key = self.input_buffer.pop(0)
@@ -218,6 +242,7 @@ class Player:
         test_rect = pygame.Rect(int(novo_wx) + 8, int(novo_wy) + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
 
         if not self.world.colide_com_arvore(test_rect):
+            # Lógica extra pra movimentação se o jogador estiver "grudado" em cima de um Tronco
             if self.tronco_atual and key in [pygame.K_a, pygame.K_d]:
                 novo_slot = self.slot_atual + (1 if key == pygame.K_d else -1)
                 if 0 <= novo_slot < self.tronco_atual.num_slots:
@@ -235,6 +260,7 @@ class Player:
                 tipo = self.world.gerar_tile(nova_linha, self.score)[1]
                 bioma = self.world.fixar_bioma_linha(nova_linha, self.score)
 
+                # Avalia o tipo de terreno do bloco, pra tocar o efeito sonoro de Passo adequado!
                 som_tocar = None
                 if tipo == TIPO_GRAMA:
                     if bioma == "floresta":
@@ -255,12 +281,14 @@ class Player:
                 if som_tocar:
                     som_tocar.play()
 
+        # O Clamp impede que ele saia vazando pra esquerda ou direita pela borda da tela.
         self.wx = clamp(self.wx, 0.0, float(LARGURA - TAMANHO_TILE))
 
         delta_x = old_wx - self.wx
         delta_y = old_wy - self.wy
 
         if delta_x != 0 or delta_y != 0:
+            # Equação para calcular Easing de Movimento (fração). Deixa o andar dele "vivo" e elástico, não duro.
             self.last_move_axis = 'x' if abs(delta_x) > abs(delta_y) else 'y'
             tempo_passado = agora - self.anim_start
             if tempo_passado < self.anim_duracao:
@@ -297,6 +325,7 @@ class Player:
         player_linha = int(self.wy // TAMANHO_TILE)
         tipo = self.world.gerar_tile(player_linha, self.score)[1]
 
+        # Verifica coletas de itens na tela (Interação Entidade-Entidade)
         prect_mundo = self.world_rect()
         for pu in self.world.powerups_ativos:
             if not pu.coletado and prect_mundo.colliderect(pu.rect_mundo()):
@@ -312,6 +341,7 @@ class Player:
                     if som:
                         som.play()
 
+        # Verifica se o jogador subiu num tronco
         if tipo == TIPO_RIO:
             ld = self.world.lane_data.get(player_linha, {})
             if ld.get("modo_rio") == "vitoria_regia":
@@ -346,6 +376,7 @@ class Player:
         img_to_draw = self.imagem
         dx, dy = 0, 0
 
+        # Efeitos de esticar o sprite da raposa quando ela salta
         tempo_anim = agora - self.anim_start
         if tempo_anim < self.anim_duracao:
             t = tempo_anim / self.anim_duracao
@@ -371,6 +402,7 @@ class Player:
         cx = int(self.wx + cur_offset_x)
         cy = int(self.wy + cur_offset_y - camera_y)
 
+        # Se tiver na água num tronco, desenha o indicador verde no pé de qual slot de madeira ela está agarrada
         if self.tronco_atual:
             sy_t = int(self.tronco_atual.linha * TAMANHO_TILE - camera_y)
             for s in range(self.tronco_atual.num_slots):
@@ -378,19 +410,21 @@ class Player:
                 surf_ind = self.ind_ativo if s == self.slot_atual else self.ind_inativo
                 surface.blit(surf_ind, (sx_slot + 4, sy_t + TAMANHO_TILE - 6))
 
+        # Desenho final aplicando opacidades do Escudo ou Dano Temporário.
         if self.tem_escudo:
             pulso = int(120 + 80 * abs((agora % 600) / 300.0 - 1))
             self.aura_escudo.set_alpha(pulso)
             surface.blit(self.aura_escudo, (cx - 8, cy - 8))
             surface.blit(img_to_draw, (px, py))
         elif agora < self.graca_ate:
-            if (agora // 80) % 2 == 0:
+            if (agora // 80) % 2 == 0:  # Efeito "piscar" enquanto imortal (modulo 2 sobre o tempo)
                 surface.blit(img_to_draw, (px, py))
         else:
             surface.blit(img_to_draw, (px, py))
 
 
 class Carro:
+    # Objeto inimigo clássico
     def __init__(self, linha, x, velocidade, direcao, img):
         self.linha, self.x, self.velocidade, self.direcao, self.img = linha, x, velocidade, direcao, img
         self.largura = img.get_width()
@@ -402,6 +436,8 @@ class Carro:
         return int(self.linha * TAMANHO_TILE - camera_y)
 
     def rect(self, camera_y):
+        # A caixa de colisão do carro também tem uma redução interna (INSET) na hitbox,
+        # para que fique amigável ao jogador escapar no pelo.
         return pygame.Rect(
             int(self.x) + HITBOX_CARRO_X_INSET,
             self.screen_y(camera_y) + HITBOX_CARRO_Y_INSET,
@@ -424,6 +460,7 @@ class Tronco:
         self.img = self._montar_superficie()
 
     def _montar_superficie(self):
+        # Gera visualmente troncos compridos mesclando a textura básica várias vezes
         surf = pygame.Surface((self.largura, TAMANHO_TILE), pygame.SRCALPHA)
         if self.tipo == "crocodilo":
             base = assets.images['rios']['jacare'] if self.direcao == 1 else assets.images['rios']['jacare_flip']
@@ -478,6 +515,7 @@ class Obstaculo:
     def draw(self, surface, camera_y, agora):
         sy = int(self.wy - camera_y)
         if -TAMANHO_TILE <= sy <= ALTURA:
+            # Transição Fade-In do obstáculo na tela.
             tempo = max(0, agora - self.nascida_em)
             alpha = int(255 * (tempo / ARVORE_APARECIMENTO_MS)) if tempo < ARVORE_APARECIMENTO_MS else 255
             if self.img:
