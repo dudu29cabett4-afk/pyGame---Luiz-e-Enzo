@@ -83,6 +83,11 @@ Claude, no deserto ao invés de troncos, faça aparecer crocodilos. Eles teriam 
 Claude, o bioma está mudando do nada. Tipo o bioma tem que mudar antes dela entrar na tela. A partir do momento q ele está na tela ele não deve ser alterado. Mande como soluciono isso.
 ```
 
+Murilo
+```bash
+Preciso apenas mudar o som de morte_carro.mp3, está alto.
+```
+
 **ChatGPT GPT 5.5**
 
 Luiz

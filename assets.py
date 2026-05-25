@@ -196,6 +196,6 @@ def load_all_assets():
         'geral': load_sound("sons/mortes/morte.mp3"),
         'agua': load_sound("sons/mortes/morte_agua.mp3"),
         'borda': load_sound("sons/mortes/morte_borda.mp3"),
-        'carro': load_sound("sons/mortes/morte_carro.mp3"),
+        'carro': load_sound("sons/mortes/morte_carro.mp3", 0.1),
         'jacare': load_sound("sons/mortes/morte_jacare.mp3"),
     }

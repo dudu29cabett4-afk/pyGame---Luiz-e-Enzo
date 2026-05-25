@@ -176,14 +176,19 @@ class Game:
         for som in assets.sons['interface'].values():
             if isinstance(som, pygame.mixer.Sound):
                 som.set_volume(master)
+
+        VOLUMES_CUSTOM = {
+            ('mortes', 'carro'): 0.05,
+        }
         for categoria in ['passos', 'powerups', 'mortes']:
             if categoria in assets.sons:
-                for som in assets.sons[categoria].values():
+                for chave, som in assets.sons[categoria].items():
+                    fator = VOLUMES_CUSTOM.get((categoria, chave), 1.0)
                     if isinstance(som, list):
                         for s in som:
-                            s.set_volume(master)
+                            s.set_volume(master*fator)
                     elif isinstance(som, pygame.mixer.Sound):
-                        som.set_volume(master)
+                        som.set_volume(master*fator)
 
     def play_track(self, track_name):
         if self.current_track == track_name:
@@ -489,8 +494,10 @@ class Game:
                         if event.key in (pygame.K_ESCAPE, pygame.K_p):
                             self.play_click()
                             self.state = ESTADO_PAUSE
-                        elif event.key in [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d]:
-                            self.player.queue_input(event.key)
+                        elif event.key in [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d, pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT]:
+                            # Mapeia as setinhas para WASD para não precisar alterar a lógica da classe Player
+                            tecla = {pygame.K_UP: pygame.K_w, pygame.K_DOWN: pygame.K_s, pygame.K_LEFT: pygame.K_a, pygame.K_RIGHT: pygame.K_d}.get(event.key, event.key)
+                            self.player.queue_input(tecla)
 
                 elif self.state == ESTADO_GAMEOVER:
                     py = (ALTURA - GAMEOVER_PANEL_H) // 2 - 20
