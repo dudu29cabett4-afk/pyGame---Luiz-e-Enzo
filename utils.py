@@ -10,7 +10,13 @@ def clamp(v, lo, hi):
 
 
 def load_save():
-    default_settings = {"fullscreen": False, "vol_master": 100, "vol_music": 100, "vol_sfx": 100}
+    default_settings = {
+        "fullscreen": False,
+        "fundomenu": False,
+        "vol_master": 100,
+        "vol_music": 100,
+        "vol_sfx": 100,
+    }
     default_data = {"players": {}, "settings": default_settings}
 
     if os.path.exists(SAVE_FILE):

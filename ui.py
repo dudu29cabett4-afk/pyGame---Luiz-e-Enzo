@@ -84,12 +84,13 @@ def draw_options_screen(surface, mouse_pos, settings):
     draw_button(surface, btn_back, "VOLTAR", btn_back.collidepoint(mouse_pos))
 
 
-def draw_transition_overlay(surface, progress):
+def draw_transition_overlay(surface, progress, kind="menu"):
     alpha = int(220 * (1.0 - abs(progress * 2 - 1)))
     if alpha > 0:
         surface.blit(get_overlay(alpha), (0, 0))
-    draw_text_shadow(surface, assets.fonts['botao_grande'], "Carregando...",
-                     (255, 210, 50), (LARGURA // 2, ALTURA // 2))
+    if kind != "death":
+        draw_text_shadow(surface, assets.fonts['botao_grande'], "Carregando...",
+                         (255, 210, 50), (LARGURA // 2, ALTURA // 2))
 
 
 def draw_pause_screen(surface, mouse_pos):

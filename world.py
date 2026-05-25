@@ -88,13 +88,16 @@ class World:
 
                 prev_tipo = self.tile_map.get(linha - 1, (None, None))[1]
                 if prev_tipo == TIPO_GRAMA:
-                    pesos = [pesos[0] + 3, max(1, pesos[1] - 1), max(1, pesos[2] - 1)]
+                    pesos = [pesos[0] + 3, pesos[1], max(0, pesos[2] - 1)]
                 elif prev_tipo == TIPO_ESTRADA:
                     pesos = [max(1, pesos[0] - 1), pesos[1] + 3, max(1, pesos[2] - 1)]
                 elif prev_tipo == TIPO_RIO:
                     pesos = [max(1, pesos[0] - 1), max(1, pesos[1] - 1), pesos[2] + 3]
 
-                tipo = random.choices([TIPO_GRAMA, TIPO_ESTRADA, TIPO_RIO], weights=pesos)[0]
+                w = [max(0, pesos[0]), max(0, pesos[1]), max(0, pesos[2])]
+                if sum(w) == 0:
+                    w = [1, 0, 0]
+                tipo = random.choices([TIPO_GRAMA, TIPO_ESTRADA, TIPO_RIO], weights=w)[0]
 
             if tipo == TIPO_ESTRADA:
                 banco_imagens = assets.images.get('estradas', [])
@@ -112,7 +115,85 @@ class World:
 
         return self.tile_map[linha]
 
-    def spawn_entities(self, linha_ini, linha_fim, score, agora):
+    def _linha_acima_do_buffer(self, linha, player):
+        linha_player = int(player.wy // TAMANHO_TILE)
+        return linha <= linha_player - OBSTACULO_BUFFER_LINHAS
+
+    def _tronco_livre(self, linha, x, largura):
+        for t in self.troncos_ativos:
+            if t.linha != linha:
+                continue
+            if t.x < x + largura and t.x + t.largura > x:
+                return False
+        return True
+
+    def _criar_tronco(self, linha, ld, x, slots, t_tipo):
+        if not self._tronco_livre(linha, x, slots * TAMANHO_TILE):
+            return None
+        t = Tronco(linha, x, ld['v'], ld['dir'], slots, t_tipo)
+        self.troncos_ativos.append(t)
+        return t
+
+    def _manter_fluxo_troncos(self, linha, ld):
+        """Mantém troncos/jacarés passando sem pausas, com gap fixo e sem sobreposição."""
+        ja = [t for t in self.troncos_ativos if t.linha == linha]
+
+        if not ja:
+            slots = random.choice(TRONCO_SLOTS_OPCOES)
+            largura = slots * TAMANHO_TILE
+            spawn_x = -largura if ld['dir'] == 1 else LARGURA
+            t_tipo = "crocodilo" if random.random() < CROCODILO_CHANCE else "tronco"
+            self._criar_tronco(linha, ld, spawn_x, slots, t_tipo)
+            return
+
+        if ld['dir'] == 1:
+            # Entram pela esquerda; garante cobertura contínua
+            esquerdo = min(ja, key=lambda t: t.x)
+            if esquerdo.x > -max(TRONCO_SLOTS_OPCOES) * TAMANHO_TILE:
+                slots = random.choice(TRONCO_SLOTS_OPCOES)
+                largura = slots * TAMANHO_TILE
+                novo_x = esquerdo.x - TRONCO_GAP_FIXO - largura
+                t_tipo = "crocodilo" if random.random() < CROCODILO_CHANCE else "tronco"
+                self._criar_tronco(linha, ld, novo_x, slots, t_tipo)
+
+            direito = max(ja, key=lambda t: t.x + t.largura)
+            spawns = 0
+            while direito.x + direito.largura < LARGURA + TRONCO_COBERTURA_EXTRA and spawns < 4:
+                slots = random.choice(TRONCO_SLOTS_OPCOES)
+                novo_x = direito.x + direito.largura + TRONCO_GAP_FIXO
+                t_tipo = "crocodilo" if random.random() < CROCODILO_CHANCE else "tronco"
+                criado = self._criar_tronco(linha, ld, novo_x, slots, t_tipo)
+                if not criado:
+                    break
+                ja.append(criado)
+                direito = criado
+                spawns += 1
+        else:
+            direito = max(ja, key=lambda t: t.x + t.largura)
+            if direito.x + direito.largura < LARGURA + max(TRONCO_SLOTS_OPCOES) * TAMANHO_TILE:
+                slots = random.choice(TRONCO_SLOTS_OPCOES)
+                novo_x = direito.x + direito.largura + TRONCO_GAP_FIXO
+                t_tipo = "crocodilo" if random.random() < CROCODILO_CHANCE else "tronco"
+                self._criar_tronco(linha, ld, novo_x, slots, t_tipo)
+
+            esquerdo = min(ja, key=lambda t: t.x)
+            spawns = 0
+            while esquerdo.x > -TRONCO_COBERTURA_EXTRA and spawns < 4:
+                slots = random.choice(TRONCO_SLOTS_OPCOES)
+                largura = slots * TAMANHO_TILE
+                novo_x = esquerdo.x - TRONCO_GAP_FIXO - largura
+                t_tipo = "crocodilo" if random.random() < CROCODILO_CHANCE else "tronco"
+                criado = self._criar_tronco(linha, ld, novo_x, slots, t_tipo)
+                if not criado:
+                    break
+                ja.append(criado)
+                esquerdo = criado
+                spawns += 1
+
+    def _colisao_com_obstaculos(self, rect):
+        return any(a.world_rect().colliderect(rect) for a in self.arvores_ativas)
+
+    def spawn_entities(self, linha_ini, linha_fim, score, agora, player):
         diff_base = min(score / SCORE_DIFICULDADE_MAX, 1.0)
         diff_f = diff_base * diff_base * (3.0 - 2.0 * diff_base)
 
@@ -123,14 +204,15 @@ class World:
 
         tron_v_min = TRONCO_VEL_BASE[0] + (TRONCO_VEL_TETO[0] - TRONCO_VEL_BASE[0]) * diff_f
         tron_v_max = TRONCO_VEL_BASE[1] + (TRONCO_VEL_TETO[1] - TRONCO_VEL_BASE[1]) * diff_f
-        tron_sp_min = int(round(TRONCO_SPAWN_BASE[0] + (TRONCO_SPAWN_TETO[0] - TRONCO_SPAWN_BASE[0]) * diff_f))
-        tron_sp_max = int(round(TRONCO_SPAWN_BASE[1] + (TRONCO_SPAWN_TETO[1] - TRONCO_SPAWN_BASE[1]) * diff_f))
 
-        for l in range(linha_ini, linha_fim + 1):
+        linha_player = int(player.wy // TAMANHO_TILE)
+        linha_fim_rio = linha_fim + 25
+
+        for l in range(linha_ini, linha_fim_rio + 1):
             tipo = self.gerar_tile(l, score)[1]
             bioma = self.fixar_bioma_linha(l, score)
 
-            if tipo == TIPO_GRAMA and l < -SAFE_ZONE_LINHAS:
+            if tipo == TIPO_GRAMA and l < -SAFE_ZONE_LINHAS and self._linha_acima_do_buffer(l, player):
                 ocupadas = {int(a.wx // TAMANHO_TILE) for a in self.arvores_ativas if a.linha == l}
                 chance_arvore = ARVORE_CHANCE_BASE + min(score / ARVORE_CHANCE_EXTRA_SCORE, ARVORE_CHANCE_EXTRA_MAX)
                 max_arvores_linha = 1 + int(3 * diff_f)
@@ -140,7 +222,7 @@ class World:
                     colunas_totais = LARGURA // TAMANHO_TILE
                     col_centro = colunas_totais // 2
                     livres = [c * TAMANHO_TILE for c in range(1, colunas_totais - 1)
-                              if c not in (col_centro - 1, col_centro) and (c not in ocupadas)]
+                              if c not in (col_centro - 1, col_centro) and c not in ocupadas]
 
                     if livres:
                         wx = random.choice(livres)
@@ -160,13 +242,21 @@ class World:
                                     continue
                                 if any(abs(c - col) <= 1 for col in cols_com_arvore):
                                     continue
-                                if c * TAMANHO_TILE in ocupadas:
+                                if c in ocupadas:
                                     continue
-                                livres.append(c * TAMANHO_TILE)
+                                wx = c * TAMANHO_TILE
+                                test = pygame.Rect(wx + 6, l * TAMANHO_TILE + 6,
+                                                   TAMANHO_TILE - 12, TAMANHO_TILE - 12)
+                                if self._colisao_com_obstaculos(test):
+                                    continue
+                                livres.append(wx)
                             if livres:
                                 wx = random.choice(livres)
                                 pu_tipo = "escudo" if random.random() < 0.5 else "xp2"
                                 self.powerups_ativos.append(PowerUp(wx, l * TAMANHO_TILE, pu_tipo))
+
+            if l > linha_fim:
+                continue
 
             if tipo == TIPO_ESTRADA:
                 if l not in self.lane_data:
@@ -186,7 +276,8 @@ class World:
                     ld['next_x'] += ld['dir'] * random.randint(car_sp_min, car_sp_max)
                 else:
                     ultimo = max(ja_existem, key=lambda c: c.x * ld['dir'])
-                    if (ld['dir'] == 1 and ultimo.x >= ld['next_x']) or (ld['dir'] == -1 and ultimo.x <= ld['next_x']):
+                    if (ld['dir'] == 1 and ultimo.x >= ld['next_x']) or (
+                            ld['dir'] == -1 and ultimo.x <= ld['next_x']):
                         imgs_carro = assets.images['carros_r'] if ld['dir'] == 1 else assets.images['carros_l']
                         img = random.choice(imgs_carro) if imgs_carro else None
                         spawn_x = -100 if ld['dir'] == 1 else LARGURA
@@ -200,7 +291,6 @@ class World:
                     is_vitoria = random.random() < 0.35 and any(
                         self.gerar_tile(nl)[1] == TIPO_RIO for nl in [l - 1, l + 1])
                     self.lane_data[l] = {"dir": d, "v": random.uniform(tron_v_min, tron_v_max),
-                                         "next_x": -100 if d == 1 else LARGURA,
                                          "modo_rio": "vitoria_regia" if is_vitoria else "troncos"}
 
                 ld = self.lane_data[l]
@@ -218,22 +308,7 @@ class World:
                             if img_lily:
                                 self.vitorias_ativas.append(Lilypad(l, c * TAMANHO_TILE, img_lily))
                 else:
-                    ja_existem = [t for t in self.troncos_ativos if t.linha == l]
-                    t_tipo = "crocodilo" if random.random() < CROCODILO_CHANCE else "tronco"
-
-                    if not ja_existem:
-                        slots = random.choice(TRONCO_SLOTS_OPCOES)
-                        ld['next_x'] = -(slots * TAMANHO_TILE) if ld['dir'] == 1 else LARGURA
-                        self.troncos_ativos.append(Tronco(l, ld['next_x'], ld['v'], ld['dir'], slots, t_tipo))
-                        ld['next_x'] += ld['dir'] * random.randint(tron_sp_min, tron_sp_max)
-                    else:
-                        ultimo = max(ja_existem, key=lambda c: c.x * ld['dir'])
-                        if (ld['dir'] == 1 and ultimo.x >= ld['next_x']) or (
-                                ld['dir'] == -1 and ultimo.x <= ld['next_x']):
-                            slots = random.choice(TRONCO_SLOTS_OPCOES)
-                            spawn_x = -(slots * TAMANHO_TILE) if ld['dir'] == 1 else LARGURA
-                            self.troncos_ativos.append(Tronco(l, spawn_x, ld['v'], ld['dir'], slots, t_tipo))
-                            ld['next_x'] += ld['dir'] * random.randint(tron_sp_min, tron_sp_max)
+                    self._manter_fluxo_troncos(l, ld)
 
     def update(self, player, score, agora, dt):
         if player.wy < self.camera_y + PLAYER_ALVO_Y:
@@ -250,7 +325,7 @@ class World:
 
         linha_ini = int(self.camera_y // TAMANHO_TILE) - 15
         linha_fim = int((self.camera_y + ALTURA) // TAMANHO_TILE) + 1
-        self.spawn_entities(linha_ini, linha_fim, score, agora)
+        self.spawn_entities(linha_ini, linha_fim, score, agora, player)
 
         for c in self.carros_ativos:
             c.update(dt)
@@ -270,7 +345,7 @@ class World:
         self.carros_ativos[:] = [c for c in self.carros_ativos if
                                  -200 <= c.x <= LARGURA + 200 and c.linha <= linha_limite]
         self.troncos_ativos[:] = [t for t in self.troncos_ativos if
-                                  -200 <= t.x <= LARGURA + 200 and t.linha <= linha_limite]
+                                  -300 <= t.x <= LARGURA + 300 and t.linha <= linha_limite + 25]
         self.powerups_ativos[:] = [p for p in self.powerups_ativos if
                                    not p.coletado and (p.wy // TAMANHO_TILE) <= linha_limite]
         self.fumacas_ativas[:] = [f for f in self.fumacas_ativas if not f.expirou(agora)]
@@ -288,9 +363,6 @@ class World:
                 del self.linhas_transicao[l]
 
     def check_death(self, player, agora):
-        if agora < player.graca_ate:
-            return False, None
-
         py_screen = player.wy - self.camera_y
         if py_screen >= ALTURA or py_screen < -TAMANHO_TILE:
             return True, "borda"
@@ -328,7 +400,7 @@ class World:
         if golpe_fatal:
             if player.tem_escudo:
                 player.tem_escudo = False
-                player.graca_ate = agora + 1200
+                player.graca_ate = agora + 400
                 return False, None
             return True, causa
 

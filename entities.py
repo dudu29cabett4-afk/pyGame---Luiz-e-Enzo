@@ -165,6 +165,32 @@ class Player:
         if len(self.input_buffer) < 2:
             self.input_buffer.append(key)
 
+    def _posicao_segura_para_pontuar(self, linha):
+        tipo = self.world.gerar_tile(linha, self.score)[1]
+        if tipo == TIPO_GRAMA:
+            rect = pygame.Rect(int(self.wx) + 8, linha * TAMANHO_TILE + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
+            return not self.world.colide_com_arvore(rect)
+        if tipo == TIPO_ESTRADA:
+            prect = pygame.Rect(int(self.wx) + 8, linha * TAMANHO_TILE + 8, TAMANHO_TILE - 16, TAMANHO_TILE - 16)
+            for c in self.world.carros_ativos:
+                if c.linha != linha:
+                    continue
+                car_rect = pygame.Rect(int(c.x) + 4, linha * TAMANHO_TILE + 4, c.largura - 8, TAMANHO_TILE - 8)
+                if car_rect.colliderect(prect):
+                    return False
+            return True
+        if tipo == TIPO_RIO:
+            col = int(self.wx // TAMANHO_TILE)
+            em_vitoria = any(
+                int(v.wx // TAMANHO_TILE) == col for v in self.world.vitorias_ativas if v.linha == linha
+            )
+            em_tronco = any(
+                t.linha == linha and t.tipo == "tronco" and t.aceita_embarque(self.wx)
+                for t in self.world.troncos_ativos
+            )
+            return em_vitoria or em_tronco
+        return False
+
     def process_input(self, agora):
         if not self.input_buffer:
             return
@@ -247,7 +273,7 @@ class Player:
             self.anim_start = agora
 
             nova_linha = int(self.wy // TAMANHO_TILE)
-            if nova_linha < self.linha_recorde:
+            if nova_linha < self.linha_recorde and self._posicao_segura_para_pontuar(nova_linha):
                 self.linha_recorde = nova_linha
                 self.score += 2 if agora < self.xp2_ate else 1
 
@@ -295,12 +321,11 @@ class Player:
                 if self.tronco_atual:
                     target_x = self.tronco_atual.slot_x_mundo(self.slot_atual)
                     self.wx = clamp(target_x, 0.0, float(LARGURA - TAMANHO_TILE))
-                    if (self.tronco_atual.x > self.wx + 20 or
-                            self.tronco_atual.x + self.tronco_atual.largura < self.wx + 20):
+                    if not self.tronco_atual.aceita_embarque(self.wx):
                         self.tronco_atual = None
 
                 for t in [tr for tr in self.world.troncos_ativos if tr.linha == player_linha]:
-                    if t.x <= self.wx < t.x + t.largura:
+                    if t.aceita_embarque(self.wx):
                         if self.tronco_atual != t:
                             if t.tipo == "tronco":
                                 som = assets.sons['passos'].get('tronco')
@@ -396,12 +421,8 @@ class Tronco:
         surf = pygame.Surface((self.largura, TAMANHO_TILE), pygame.SRCALPHA)
         if self.tipo == "crocodilo":
             base = assets.images['rios']['jacare'] if self.direcao == 1 else assets.images['rios']['jacare_flip']
-            seg_w = assets.images['rios'].get('jacare_w', TAMANHO_TILE)
-            y_off = max(0, (TAMANHO_TILE - base.get_height()) // 2)
-            px = 0
-            while px < self.largura:
-                surf.blit(base, (px, y_off))
-                px += seg_w
+            base = pygame.transform.scale(base, (self.largura, TAMANHO_TILE))
+            surf.blit(base, (0, 0))
         else:
             base = assets.images['rios']['tronco']
             for px in range(0, self.largura, TAMANHO_TILE):
@@ -426,6 +447,10 @@ class Tronco:
 
     def slot_do_x(self, wx):
         return max(0, min(self.num_slots - 1, round((wx - self.x) / TAMANHO_TILE)))
+
+    def aceita_embarque(self, wx, tolerancia=TRONCO_EMBARQUE_TOLERANCIA):
+        centro_jogador = wx + TAMANHO_TILE / 2
+        return self.x - tolerancia <= centro_jogador <= self.x + self.largura + tolerancia
 
     def draw(self, surface, camera_y, agora):
         ox = int(self.offset_desenho(agora))

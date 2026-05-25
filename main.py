@@ -66,6 +66,7 @@ class Game:
 
         self.transition = None
         self._pending_setup = None
+        self._game_rect = pygame.Rect(0, 0, LARGURA, ALTURA)
 
         texto_rec = "NOVO RECORDE!"
         self.record_surf_main = assets.fonts['botao_grande'].render(texto_rec, True, (255, 215, 0))
@@ -77,30 +78,49 @@ class Game:
             self.window = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
         else:
             self.window = pygame.display.set_mode((LARGURA, ALTURA), pygame.SCALED)
+        self._game_rect = pygame.Rect(0, 0, LARGURA, ALTURA)
 
     def get_mapped_mouse(self):
         mx, my = pygame.mouse.get_pos()
-        if self.settings.get("fullscreen"):
-            sw, sh = self.window.get_size()
-            if sw > 0 and sh > 0:
-                return int(mx * LARGURA / sw), int(my * ALTURA / sh)
+        r = self._game_rect
+        if r.width > 0 and r.height > 0 and (r.width, r.height) != (LARGURA, ALTURA):
+            return (
+                int(clamp((mx - r.x) * LARGURA / r.width, 0, LARGURA - 1)),
+                int(clamp((my - r.y) * ALTURA / r.height, 0, ALTURA - 1)),
+            )
         return mx, my
 
     def blit_to_window(self):
         sw, sh = self.window.get_size()
-        if (sw, sh) == (LARGURA, ALTURA):
-            self.window.blit(self.game_surface, (0, 0))
+        if self.settings.get("fullscreen") and (sw, sh) != (LARGURA, ALTURA):
+            bg = assets.images['telas'].get('fullscreen')
+            if bg:
+                self.window.blit(pygame.transform.scale(bg, (sw, sh)), (0, 0))
+            else:
+                self.window.fill((0, 0, 0))
+            escala = min(sw / LARGURA, sh / ALTURA)
+            gw = int(LARGURA * escala)
+            gh = int(ALTURA * escala)
+            ox = (sw - gw) // 2
+            oy = (sh - gh) // 2
+            self.window.blit(pygame.transform.scale(self.game_surface, (gw, gh)), (ox, oy))
+            self._game_rect = pygame.Rect(ox, oy, gw, gh)
         else:
-            escalada = pygame.transform.scale(self.game_surface, (sw, sh))
-            self.window.blit(escalada, (0, 0))
+            self.window.blit(self.game_surface, (0, 0))
+            self._game_rect = pygame.Rect(0, 0, LARGURA, ALTURA)
 
-    def request_state(self, new_state, agora, setup_fn=None):
+    def request_state(self, new_state, agora, setup_fn=None, kind="menu"):
         if self.transition:
             return
         if new_state == self.state and setup_fn is None:
             return
+        duracao = {
+            "menu": TRANSICAO_MENU_MS,
+            "game": TRANSICAO_JOGO_MS,
+            "death": TRANSICAO_MORTE_MS,
+        }.get(kind, TRANSICAO_MENU_MS)
         self._pending_setup = setup_fn
-        self.transition = {"target": new_state, "start": agora}
+        self.transition = {"target": new_state, "start": agora, "duration": duracao, "kind": kind}
 
     def _finish_transition(self):
         if self._pending_setup:
@@ -111,7 +131,8 @@ class Game:
     def transition_progress(self, agora):
         if not self.transition:
             return 1.0
-        return clamp((agora - self.transition["start"]) / TRANSICAO_DURACAO_MS, 0.0, 1.0)
+        dur = self.transition.get("duration", TRANSICAO_MENU_MS)
+        return clamp((agora - self.transition["start"]) / dur, 0.0, 1.0)
 
     def is_transitioning(self):
         return self.transition is not None
@@ -227,16 +248,19 @@ class Game:
         if s:
             s.play()
 
-        self.request_state(ESTADO_GAMEOVER, agora)
+        self.request_state(ESTADO_GAMEOVER, agora, kind="death")
         self.shake_remaining = 6
 
     def _menu_btn_rects(self):
         cx = LARGURA // 2 - MENU_BTN_W // 2
+        y0 = ALTURA // 2 - 95
+        gap = 55
         return {
-            "new": pygame.Rect(cx, ALTURA // 2 - 70, MENU_BTN_W, MENU_BTN_H),
-            "load": pygame.Rect(cx, ALTURA // 2 - 10, MENU_BTN_W, MENU_BTN_H),
-            "lb": pygame.Rect(cx, ALTURA // 2 + 50, MENU_BTN_W, MENU_BTN_H),
-            "opt": pygame.Rect(cx, ALTURA // 2 + 110, MENU_BTN_W, MENU_BTN_H),
+            "new": pygame.Rect(cx, y0, MENU_BTN_W, MENU_BTN_H),
+            "load": pygame.Rect(cx, y0 + gap, MENU_BTN_W, MENU_BTN_H),
+            "lb": pygame.Rect(cx, y0 + gap * 2, MENU_BTN_W, MENU_BTN_H),
+            "opt": pygame.Rect(cx, y0 + gap * 3, MENU_BTN_W, MENU_BTN_H),
+            "quit": pygame.Rect(cx, y0 + gap * 4, MENU_BTN_W, MENU_BTN_H),
         }
 
     def run(self):
@@ -316,6 +340,10 @@ class Game:
                         elif btns["opt"].collidepoint(mouse):
                             self.play_click()
                             self.request_state(ESTADO_OPTIONS, agora)
+                        elif btns["quit"].collidepoint(mouse):
+                            self.play_click()
+                            pygame.quit()
+                            sys.exit()
 
                 elif self.state == ESTADO_OPTIONS:
                     btn_fs = pygame.Rect(LARGURA // 2 - 120, OPT_Y_FS, 240, 40)
@@ -414,7 +442,7 @@ class Game:
                                     self.pending_delete = None
                                     nome = p
                                     self.request_state(ESTADO_JOGANDO, agora,
-                                                       lambda n=nome: self.start_game(n))
+                                                       lambda n=nome: self.start_game(n), kind="game")
                                     break
                                 elif btn_del.collidepoint(mouse):
                                     self.play_click()
@@ -444,7 +472,7 @@ class Game:
                         if event.key == pygame.K_r:
                             self.play_click()
                             nome = self.current_player
-                            self.request_state(ESTADO_JOGANDO, agora, lambda n=nome: self.start_game(n))
+                            self.request_state(ESTADO_JOGANDO, agora, lambda n=nome: self.start_game(n), kind="game")
                         if event.key == pygame.K_m:
                             self.play_click()
                             self.request_state(ESTADO_MENU, agora)
@@ -453,7 +481,7 @@ class Game:
                         if btn_retry.collidepoint(mouse):
                             self.play_click()
                             nome = self.current_player
-                            self.request_state(ESTADO_JOGANDO, agora, lambda n=nome: self.start_game(n))
+                            self.request_state(ESTADO_JOGANDO, agora, lambda n=nome: self.start_game(n), kind="game")
                         elif btn_menu.collidepoint(mouse):
                             self.play_click()
                             self.request_state(ESTADO_MENU, agora)
@@ -473,6 +501,7 @@ class Game:
                 draw_button(self.game_surface, btns["load"], "CARREGAR", btns["load"].collidepoint(mouse))
                 draw_button(self.game_surface, btns["lb"], "RANKING", btns["lb"].collidepoint(mouse))
                 draw_button(self.game_surface, btns["opt"], "OPÇÕES", btns["opt"].collidepoint(mouse))
+                draw_button(self.game_surface, btns["quit"], "SAIR", btns["quit"].collidepoint(mouse))
                 hover_dict = btns
 
             elif self.state == ESTADO_OPTIONS:
@@ -597,7 +626,8 @@ class Game:
                 draw_game_over_screen(self.game_surface, self.death_stats, mouse, btn_retry, btn_menu)
 
             if transitioning:
-                draw_transition_overlay(self.game_surface, prog)
+                kind = self.transition.get("kind", "menu")
+                draw_transition_overlay(self.game_surface, prog, kind)
 
             if not transitioning:
                 self.check_hover(hover_dict, mouse)
